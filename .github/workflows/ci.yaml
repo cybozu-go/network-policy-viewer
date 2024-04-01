@@ -3,16 +3,30 @@ on:
   pull_request:
   push:
     branches:
-    - 'main'
+      - main
 env:
-  go-version: "1.21"
+  cache-version: 1
 jobs:
   test:
-    name: Small tests
+    name: e2e
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.go-version }}
-    - run: make test
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: Cache tools
+        id: cache-tools
+        uses: actions/cache@v3
+        with:
+          path: bin/download
+          key: cache-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+      - name: Setup tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: make setup
+      - name: Run environment
+        run: make start
+        working-directory: e2e
+      - name: Install
+        run: make install
+        working-directory: e2e
