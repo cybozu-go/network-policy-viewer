@@ -9,4 +9,4 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 ### Removed
 
-[Unreleased]: https://github.com/cybozu-go/neco-template/compare/4b825dc642cb6eb9a060e54bf8d69288fbee4904...HEAD
+[Unreleased]: https://github.com/cybozu-go/cilium-policy-viewer/compare/bd1159a58c5bffddf20a186decd8d511aab5fe68...HEAD
