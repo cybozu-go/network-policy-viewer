@@ -1,0 +1,49 @@
+static_resources:
+  listeners:
+    - name: cilium-agent-proxy
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+          - name: envoy.http_connection_manager
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+              stat_prefix: ingress_http
+              http_filters:
+                - name: envoy.filters.http.router
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+              route_config:
+                name: cilium-agent-proxy
+                virtual_hosts:
+                  - name: cilium-agent-proxy
+                    domains: ["*"]
+                    routes:
+                      - match:
+                          prefix: "/v1/endpoint/"
+                          headers:
+                            - name: ":method"
+                              string_match:
+                                exact: "GET"
+                        route:
+                          cluster: cilium-agent-proxy
+                      - match:
+                          prefix: "/v1/identity/"
+                          headers:
+                            - name: ":method"
+                              string_match:
+                                exact: "GET"
+                        route:
+                          cluster: cilium-agent-proxy
+  clusters:
+    - name: cilium-agent-proxy
+      load_assignment:
+        cluster_name: cilium-agent-proxy
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  pipe:
+                    path: /var/run/cilium/cilium.sock
