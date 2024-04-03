@@ -61,6 +61,10 @@ install-policy-viewer:
 	$(KUBECTL) cp $(CILIUM_POLICY) $${PODNAME}:/tmp/; \
 	$(KUBECTL) exec $${PODNAME} -- chmod +x /tmp/cilium-policy
 
+.PHONY: test
+test:
+	go test -v -race . -ginkgo.v -ginkgo.fail-fast
+
 .PHONY: stop
 stop:
 	$(KIND) delete cluster

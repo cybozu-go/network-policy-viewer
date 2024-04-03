@@ -35,3 +35,6 @@ jobs:
           make start
           make install-test-pod
           make install-policy-viewer
+      - name: Test
+        working-directory: e2e
+        run: make test
