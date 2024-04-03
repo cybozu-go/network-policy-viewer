@@ -54,8 +54,8 @@ install-test-pod:
 	$(MAKE) --no-print-directory wait-for-workloads
 	$(KUBECTL) apply -f testdata/policy/l3.yaml
 
-.PHONY: install-policy-viewer
-install-policy-viewer:
+.PHONY: install-cilium-policy
+install-cilium-policy:
 	$(MAKE) -C ../ build
 	PODNAME=$$($(KUBECTL) get po -l app=ubuntu -o name | cut -d'/' -f2); \
 	$(KUBECTL) cp $(CILIUM_POLICY) $${PODNAME}:/tmp/; \

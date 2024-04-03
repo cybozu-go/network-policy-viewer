@@ -64,7 +64,7 @@ func testList() {
 	It("should list applied policies", func() {
 		for _, c := range cases {
 			podName := onePodByLabelSelector(Default, "default", c.Selector)
-			result := runViewerSafe(Default, nil, "list", podName)
+			result := runViewerSafe(Default, nil, "list", "-o=json", podName)
 			testJson(Default, result, c.Expected)
 		}
 	})
