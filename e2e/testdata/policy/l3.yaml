@@ -1,0 +1,48 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l3-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: self
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l3-ingress-explicit-allow
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l3-ingress-implicit-deny
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l3-ingress-explicit-deny
+  egressDeny:
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l3-egress-explicit-deny
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l3-ingress-explicit-allow
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l3-ingress-explicit-allow
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l3-ingress-explicit-deny
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l3-ingress-explicit-deny
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self

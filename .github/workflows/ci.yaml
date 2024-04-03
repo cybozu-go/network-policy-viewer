@@ -30,8 +30,8 @@ jobs:
       - name: Run lint
         run: make lint
       - name: Run environment
-        run: make start
         working-directory: e2e
-      - name: Install
-        run: make install
-        working-directory: e2e
+        run: |
+          make start
+          make install-test-pod
+          make install-policy-viewer
