@@ -27,6 +27,8 @@ jobs:
           key: cache-files-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
       - name: Setup tools
         run: make setup
+      - name: Run code check
+        run: make check-generate
       - name: Run lint
         run: make lint
       - name: Run environment

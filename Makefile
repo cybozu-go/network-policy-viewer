@@ -80,6 +80,11 @@ build: ## Build cilium-policy-viewer
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/cilium-policy main.go
 
+.PHONY: check-generate
+check-generate:
+	go mod tidy
+	git diff --exit-code --name-only
+
 .PHONY: lint
 lint: ## Run lint tools
 	go vet ./...
