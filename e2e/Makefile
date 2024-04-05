@@ -2,8 +2,10 @@ CILIUM_VERSION := 1.15.3
 
 BIN_DIR := $(shell pwd)/../bin
 TOOLS_DIR := $(BIN_DIR)/download
+CACHE_DIR := $(shell pwd)/../cache
+
 CILIUM_POLICY := $(BIN_DIR)/cilium-policy
-HELM := $(TOOLS_DIR)/helm
+HELM := $(TOOLS_DIR)/helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 KIND := $(TOOLS_DIR)/kind
 KUBECTL := $(TOOLS_DIR)/kubectl
 KUSTOMIZE := $(TOOLS_DIR)/kustomize

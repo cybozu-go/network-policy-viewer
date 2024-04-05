@@ -5,7 +5,7 @@ on:
     branches:
       - main
 env:
-  cache-version: 1
+  cache-version: "2024-04-05"
 jobs:
   test:
     name: e2e
@@ -16,13 +16,16 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Cache tools
-        id: cache-tools
         uses: actions/cache@v3
         with:
           path: bin/download
-          key: cache-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+          key: cache-tools-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+      - name: Cache files
+        uses: actions/cache@v3
+        with:
+          path: cache
+          key: cache-files-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
       - name: Setup tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
         run: make setup
       - name: Run lint
         run: make lint
