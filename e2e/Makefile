@@ -19,13 +19,13 @@ help: ## Display this help
 .PHONY: start
 start:
 	docker pull quay.io/cilium/cilium:v$(CILIUM_VERSION)
-	$(KIND) create cluster --config cluster.yaml
+	$(KIND) create cluster --config testdata/cluster.yaml
 	$(KIND) load docker-image quay.io/cilium/cilium:v$(CILIUM_VERSION)
 	$(HELM) install cilium cilium/cilium --version $(CILIUM_VERSION) \
 		--namespace kube-system \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
-	$(KUSTOMIZE) build . | $(KUBECTL) apply -f -
+	$(KUSTOMIZE) build testdata | $(KUBECTL) apply -f -
 	$(KUBECTL) wait --for=condition=Available --all deployments --all-namespaces --timeout=1h
 	$(KUBECTL) wait --for=condition=Ready --all pods --all-namespaces --timeout=1h
 
