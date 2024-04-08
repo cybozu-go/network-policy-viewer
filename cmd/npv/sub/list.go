@@ -1,4 +1,4 @@
-package cmd
+package sub
 
 import (
 	"context"
@@ -30,6 +30,11 @@ var listCmd = &cobra.Command{
 	},
 }
 
+const (
+	directionEgress  = "EGRESS"
+	directionIngress = "INGRESS"
+)
+
 type derivedFromEntry struct {
 	Direction string `json:"direction"`
 	Kind      string `json:"kind"`
@@ -37,18 +42,20 @@ type derivedFromEntry struct {
 	Name      string `json:"name"`
 }
 
-func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
-	ret := strings.Compare(x.Direction, y.Direction)
-	if ret == 0 {
-		ret = strings.Compare(x.Kind, y.Kind)
+func compareDerivedFromEntry(x, y *derivedFromEntry) bool {
+	if x.Direction != y.Direction {
+		return strings.Compare(x.Direction, y.Direction) < 0
 	}
-	if ret == 0 {
-		ret = strings.Compare(x.Namespace, y.Namespace)
+	if x.Kind != y.Kind {
+		return strings.Compare(x.Kind, y.Kind) < 0
 	}
-	if ret == 0 {
-		ret = strings.Compare(x.Name, y.Name)
+	if x.Namespace != y.Namespace {
+		return strings.Compare(x.Namespace, y.Namespace) < 0
 	}
-	return ret < 0
+	if x.Name != y.Name {
+		return strings.Compare(x.Name, y.Name) < 0
+	}
+	return false
 }
 
 func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
@@ -74,7 +81,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	endpointID, _, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
+	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}
@@ -88,7 +95,6 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	// The same rule appears multiple times in the response, so we need to dedup it
 	policySet := make(map[derivedFromEntry]struct{})
 
 	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
@@ -108,7 +114,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	policyList := maps.Keys(policySet)
-	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(policyList, func(i, j int) bool { return compareDerivedFromEntry(&policyList[i], &policyList[j]) })
 
 	switch rootOptions.output {
 	case OutputJson:
@@ -121,12 +127,14 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	case OutputSimple:
 		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
 		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n")); err != nil {
+			_, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n"))
+			if err != nil {
 				return err
 			}
 		}
 		for _, p := range policyList {
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name))); err != nil {
+			_, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name)))
+			if err != nil {
 				return err
 			}
 		}

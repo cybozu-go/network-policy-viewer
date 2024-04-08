@@ -1,10 +1,9 @@
-package cmd
+package sub
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/cilium/cilium/pkg/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,17 +14,13 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const (
-	directionEgress  = "EGRESS"
-	directionIngress = "INGRESS"
-)
-
 func createClients(ctx context.Context, name string) (*kubernetes.Clientset, *dynamic.DynamicClient, *client.Client, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	// Create Kubernetes Clients
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, nil, nil, err
@@ -36,24 +31,17 @@ func createClients(ctx context.Context, name string) (*kubernetes.Clientset, *dy
 		return nil, nil, nil, err
 	}
 
-	ciliumClient, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
+	// Create Cilium Client
+	endpoint, err := getProxyEndpoint(ctx, clientset, rootOptions.namespace, name)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	ciliumClient, err := client.NewClient(endpoint)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	return clientset, dynamicClient, ciliumClient, err
-}
-
-func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*client.Client, error) {
-	endpoint, err := getProxyEndpoint(ctx, clientset, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-	client, err := client.NewClient(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
 
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
@@ -79,7 +67,7 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
 }
 
-func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, int64, error) {
+func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
 	gvr := schema.GroupVersionResource{
 		Group:    "cilium.io",
 		Version:  "v2",
@@ -88,46 +76,16 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 
 	ep, err := d.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	endpointID, found, err := unstructured.NestedInt64(ep.Object, "status", "id")
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if !found {
-		return 0, 0, errors.New("CiliumEndpoint does not have .status.id")
+		return 0, errors.New("endpoint resource is broken")
 	}
 
-	endpointIdentity, found, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
-	if err != nil {
-		return 0, 0, err
-	}
-	if !found {
-		return 0, 0, errors.New("CiliumEndpoint does not have .status.identity.id")
-	}
-
-	return endpointID, endpointIdentity, nil
-}
-
-func listCiliumIDs(ctx context.Context, d *dynamic.DynamicClient) (*unstructured.UnstructuredList, error) {
-	gvr := schema.GroupVersionResource{
-		Group:    "cilium.io",
-		Version:  "v2",
-		Resource: "ciliumidentities",
-	}
-	return d.Resource(gvr).List(ctx, metav1.ListOptions{})
-}
-
-func findCiliumID(dict *unstructured.UnstructuredList, id int64) *unstructured.Unstructured {
-	if dict == nil {
-		return nil
-	}
-	name := strconv.FormatInt(id, 10)
-	for _, item := range dict.Items {
-		if item.GetName() == name {
-			return &item
-		}
-	}
-	return nil
+	return endpointID, nil
 }

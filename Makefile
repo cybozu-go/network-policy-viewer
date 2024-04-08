@@ -42,7 +42,7 @@ clean:
 .PHONY: build
 build: ## Build network-policy-viewer
 	mkdir -p $(BIN_DIR)
-	go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv main.go
+	go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv ./cmd/npv
 
 .PHONY: check-generate
 check-generate:

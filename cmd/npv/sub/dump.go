@@ -1,4 +1,4 @@
-package cmd
+package sub
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ func runDump(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	endpointID, _, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
+	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}
