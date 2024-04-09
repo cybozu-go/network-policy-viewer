@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-env:
-  cache-version: "2024-04-05"
 jobs:
   test:
     name: e2e
@@ -19,12 +17,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: bin/download
-          key: cache-tools-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+          key: cache-tools-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
       - name: Cache files
         uses: actions/cache@v3
         with:
           path: cache
-          key: cache-files-${{ env.cache-version }}-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+          key: cache-files-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
       - name: Setup tools
         run: make setup
       - name: Run code check
