@@ -17,4 +17,5 @@
 
 # Generated files
 /bin
+/cache
 /docs/book
