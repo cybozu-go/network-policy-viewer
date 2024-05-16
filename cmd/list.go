@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
@@ -22,7 +24,7 @@ var listCmd = &cobra.Command{
 
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runList(context.Background(), args[0])
+		return runList(context.Background(), cmd.OutOrStdout(), args[0])
 	},
 }
 
@@ -55,7 +57,7 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 	return val
 }
 
-func runList(ctx context.Context, name string) error {
+func runList(ctx context.Context, w io.Writer, name string) error {
 	_, dynamicClient, client, err := createClients(ctx, name)
 	if err != nil {
 		return err
@@ -91,11 +93,28 @@ func runList(ctx context.Context, name string) error {
 		}
 	}
 
-	text, err := json.MarshalIndent(policyList, "", "  ")
-	if err != nil {
+	switch rootOptions.output {
+	case OutputJson:
+		text, err := json.MarshalIndent(policyList, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(text)
 		return err
+	case OutputSimple:
+		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
+		_, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n"))
+		if err != nil {
+			return err
+		}
+		for _, p := range policyList {
+			_, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name)))
+			if err != nil {
+				return err
+			}
+		}
+		return tw.Flush()
+	default:
+		return fmt.Errorf("unknown format: %s", rootOptions.output)
 	}
-
-	fmt.Println(string(text))
-	return nil
 }

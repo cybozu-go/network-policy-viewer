@@ -22,11 +22,11 @@ var dumpCmd = &cobra.Command{
 
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runDump(context.Background(), args[0])
+		return runDump(context.Background(), cmd.OutOrStdout(), args[0])
 	},
 }
 
-func runDump(ctx context.Context, name string) error {
+func runDump(ctx context.Context, w io.Writer, name string) error {
 	clientset, dynamicClient, _, err := createClients(ctx, name)
 	if err != nil {
 		return err
@@ -54,6 +54,6 @@ func runDump(ctx context.Context, name string) error {
 
 	var buf bytes.Buffer
 	json.Indent(&buf, data, "", "  ")
-	fmt.Println(buf.String())
+	buf.WriteTo(w)
 	return nil
 }
