@@ -78,7 +78,7 @@ clean:
 .PHONY: build
 build: ## Build network-policy-viewer
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/cilium-policy main.go
+	go build -o $(BIN_DIR)/npv main.go
 
 .PHONY: check-generate
 check-generate:

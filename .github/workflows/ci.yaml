@@ -34,7 +34,7 @@ jobs:
         run: |
           make start
           make install-test-pod
-          make install-cilium-policy
+          make install-policy-viewer
       - name: Test
         working-directory: e2e
         run: make test

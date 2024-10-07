@@ -4,7 +4,7 @@ BIN_DIR := $(shell pwd)/../bin
 TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/../cache
 
-CILIUM_POLICY := $(BIN_DIR)/cilium-policy
+POLICY_VIEWER := $(BIN_DIR)/npv
 HELM := $(TOOLS_DIR)/helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 KIND := $(TOOLS_DIR)/kind
 KUBECTL := $(TOOLS_DIR)/kubectl
@@ -54,12 +54,12 @@ install-test-pod:
 	$(MAKE) --no-print-directory wait-for-workloads
 	$(KUBECTL) apply -f testdata/policy/l3.yaml
 
-.PHONY: install-cilium-policy
-install-cilium-policy:
+.PHONY: install-policy-viewer
+install-policy-viewer:
 	$(MAKE) -C ../ build
 	PODNAME=$$($(KUBECTL) get po -l app=ubuntu -o name | cut -d'/' -f2); \
-	$(KUBECTL) cp $(CILIUM_POLICY) $${PODNAME}:/tmp/; \
-	$(KUBECTL) exec $${PODNAME} -- chmod +x /tmp/cilium-policy
+	$(KUBECTL) cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
+	$(KUBECTL) exec $${PODNAME} -- chmod +x /tmp/npv
 
 .PHONY: test
 test:

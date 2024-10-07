@@ -14,7 +14,7 @@ import (
 const (
 	jqPath           = "../bin/download/jq"
 	kubectlPath      = "../bin/download/kubectl"
-	policyViewerPath = "/tmp/cilium-policy"
+	policyViewerPath = "/tmp/npv"
 )
 
 func runCommand(path string, input []byte, args ...string) ([]byte, []byte, error) {
