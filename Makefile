@@ -76,7 +76,7 @@ clean:
 ##@ Development
 
 .PHONY: build
-build: ## Build cilium-policy-viewer
+build: ## Build network-policy-viewer
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/cilium-policy main.go
 

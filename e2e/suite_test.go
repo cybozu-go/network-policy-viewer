@@ -18,7 +18,7 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(5 * time.Minute)
 })
 
-var _ = Describe("Test cilium-policy-viewer", func() {
+var _ = Describe("Test network-policy-viewer", func() {
 	runTest()
 })
 

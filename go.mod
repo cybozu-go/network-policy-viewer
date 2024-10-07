@@ -1,4 +1,4 @@
-module github.com/cybozu-go/cilium-policy-viewer
+module github.com/cybozu-go/network-policy-viewer
 
 go 1.22.1
 
