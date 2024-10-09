@@ -1,0 +1,47 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        required: true
+        description: The name of the tag to release (X.Y.Z)
+jobs:
+  release:
+    name: Release network-policy-viewer
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Validate inputs
+        run: |
+          if [[ ! ${{ inputs.tag }} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid tag format. Please use X.Y.Z"
+            exit 1
+          fi
+          if git rev-parse v${{ inputs.tag }} >/dev/null 2>&1; then
+              echo "Tag v${{ inputs.tag }} already exists"
+              exit 1
+          fi
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: |
+          make build
+          cd bin; tar -czvf npv_v${{ inputs.tag }}_amd64.tar.gz npv
+      - name: Setup Git Config
+        run: |
+          git config --global user.name github-actions
+          git config --global user.email github-actions@github.com
+      - name: Push tag
+        run: |
+          git tag -a v${{ inputs.tag }} -m "Release network-policy-viewer v${{ inputs.tag }}"
+          git push origin v${{ inputs.tag }}
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v${{ inputs.tag }} --title "Release v${{ inputs.tag }}" --generate-notes
+          gh release upload v${{ inputs.tag }} bin/npv_v${{ inputs.tag }}_amd64.tar.gz --clobber
