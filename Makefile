@@ -78,7 +78,7 @@ clean:
 .PHONY: build
 build: ## Build network-policy-viewer
 	mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv main.go
+	go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv main.go
 
 .PHONY: check-generate
 check-generate:
