@@ -1,15 +1,11 @@
-CILIUM_VERSION := 1.15.3
+CILIUM_VERSION := $(shell go list -m -f '{{.Version}}' github.com/cilium/cilium | cut -c2-)
 
 BIN_DIR := $(shell pwd)/../bin
 TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/../cache
 
 POLICY_VIEWER := $(BIN_DIR)/npv
-HELM := $(TOOLS_DIR)/helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
-KIND := $(TOOLS_DIR)/kind
-KUBECTL := $(TOOLS_DIR)/kubectl
-KUSTOMIZE := $(TOOLS_DIR)/kustomize
-YQ := $(TOOLS_DIR)/yq
+HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 
 ##@ Basic
 
@@ -21,27 +17,27 @@ help: ## Display this help
 
 .PHONY: wait-for-workloads
 wait-for-workloads:
-	$(KUBECTL) wait --for=condition=Available --all deployments --all-namespaces --timeout=1h
-	$(KUBECTL) wait --for=condition=Ready --all pods --all-namespaces --timeout=1h
+	kubectl wait --for=condition=Available --all deployments --all-namespaces --timeout=1h
+	kubectl wait --for=condition=Ready --all pods --all-namespaces --timeout=1h
 
 .PHONY: start
 start:
 	docker pull quay.io/cilium/cilium:v$(CILIUM_VERSION)
-	$(KIND) create cluster --config testdata/cluster.yaml
-	$(KIND) load docker-image quay.io/cilium/cilium:v$(CILIUM_VERSION)
+	kind create cluster --config testdata/cluster.yaml
+	kind load docker-image quay.io/cilium/cilium:v$(CILIUM_VERSION)
 	$(HELM) install cilium cilium/cilium --version $(CILIUM_VERSION) \
 		--namespace kube-system \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
-	$(KUSTOMIZE) build testdata | $(KUBECTL) apply -f -
+	kustomize build testdata | kubectl apply -f -
 	$(MAKE) --no-print-directory wait-for-workloads
 
 run-test-pod-%:
 	cat testdata/template/ubuntu.yaml | \
-		$(YQ) '.metadata.name = "$*"' | \
-		$(YQ) '.spec.selector.matchLabels = {"test": "$*"}' | \
-		$(YQ) '.spec.template.metadata.labels = {"test": "$*"}' | \
-		$(KUBECTL) apply -f -
+		yq '.metadata.name = "$*"' | \
+		yq '.spec.selector.matchLabels = {"test": "$*"}' | \
+		yq '.spec.template.metadata.labels = {"test": "$*"}' | \
+		kubectl apply -f -
 
 .PHONY: install-test-pod
 install-test-pod:
@@ -52,14 +48,14 @@ install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny
 	$(MAKE) --no-print-directory run-test-pod-l3-egress-explicit-deny
 	$(MAKE) --no-print-directory wait-for-workloads
-	$(KUBECTL) apply -f testdata/policy/l3.yaml
+	kubectl apply -f testdata/policy/l3.yaml
 
 .PHONY: install-policy-viewer
 install-policy-viewer:
 	$(MAKE) -C ../ build
-	PODNAME=$$($(KUBECTL) get po -l app=ubuntu -o name | cut -d'/' -f2); \
-	$(KUBECTL) cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
-	$(KUBECTL) exec $${PODNAME} -- chmod +x /tmp/npv
+	PODNAME=$$(kubectl get po -l app=ubuntu -o name | cut -d'/' -f2); \
+	kubectl cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/npv
 
 .PHONY: test
 test:
@@ -67,4 +63,4 @@ test:
 
 .PHONY: stop
 stop:
-	$(KIND) delete cluster
+	kind delete cluster
