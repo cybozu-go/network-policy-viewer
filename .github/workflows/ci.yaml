@@ -23,6 +23,9 @@ jobs:
         with:
           path: cache
           key: cache-files-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
+      - uses: ./.github/actions/aqua
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup tools
         run: make setup
       - name: Run code check

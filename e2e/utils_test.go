@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	jqPath           = "../bin/download/jq"
-	kubectlPath      = "../bin/download/kubectl"
+	jqPath           = "jq"
+	kubectlPath      = "kubectl"
 	policyViewerPath = "/tmp/npv"
 )
 
