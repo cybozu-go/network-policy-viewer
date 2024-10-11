@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/maps"
 )
 
 func init() {
@@ -38,6 +40,22 @@ type derivedFromEntry struct {
 	Kind      string `json:"kind"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
+}
+
+func compareDerivedFromEntry(x, y *derivedFromEntry) bool {
+	if x.Direction != y.Direction {
+		return strings.Compare(x.Direction, y.Direction) < 0
+	}
+	if x.Kind != y.Kind {
+		return strings.Compare(x.Kind, y.Kind) < 0
+	}
+	if x.Namespace != y.Namespace {
+		return strings.Compare(x.Namespace, y.Namespace) < 0
+	}
+	if x.Name != y.Name {
+		return strings.Compare(x.Name, y.Name) < 0
+	}
+	return false
 }
 
 func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
@@ -77,21 +95,26 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	policyList := make([]derivedFromEntry, 0)
+	policySet := make(map[derivedFromEntry]struct{})
 
 	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
 	for _, rule := range ingressRules {
 		for _, r := range rule.DerivedFromRules {
-			policyList = append(policyList, parseDerivedFromEntry(r, directionIngress))
+			entry := parseDerivedFromEntry(r, directionIngress)
+			policySet[entry] = struct{}{}
 		}
 	}
 
 	egressRules := response.Payload.Status.Policy.Realized.L4.Egress
 	for _, rule := range egressRules {
 		for _, r := range rule.DerivedFromRules {
-			policyList = append(policyList, parseDerivedFromEntry(r, directionEgress))
+			entry := parseDerivedFromEntry(r, directionEgress)
+			policySet[entry] = struct{}{}
 		}
 	}
+
+	policyList := maps.Keys(policySet)
+	sort.Slice(policyList, func(i, j int) bool { return compareDerivedFromEntry(&policyList[i], &policyList[j]) })
 
 	switch rootOptions.output {
 	case OutputJson:
@@ -103,9 +126,11 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return err
 	case OutputSimple:
 		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		_, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n"))
-		if err != nil {
-			return err
+		if !rootOptions.noHeaders {
+			_, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n"))
+			if err != nil {
+				return err
+			}
 		}
 		for _, p := range policyList {
 			_, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name)))

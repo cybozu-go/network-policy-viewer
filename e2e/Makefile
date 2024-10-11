@@ -33,22 +33,33 @@ start:
 	$(MAKE) --no-print-directory wait-for-workloads
 
 run-test-pod-%:
+	@# https://github.com/orgs/aquaproj/discussions/2964
+	@echo Hello | yq > /dev/null
 	cat testdata/template/ubuntu.yaml | \
 		yq '.metadata.name = "$*"' | \
 		yq '.spec.selector.matchLabels = {"test": "$*"}' | \
-		yq '.spec.template.metadata.labels = {"test": "$*"}' | \
+		yq '.spec.template.metadata.labels = {"test": "$*", "group": "test"}' | \
 		kubectl apply -f -
 
 .PHONY: install-test-pod
 install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-self
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-no-rule
+	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny
 	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny
 	$(MAKE) --no-print-directory run-test-pod-l3-egress-explicit-deny
+
+	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-any
+	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-tcp
+	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-deny-any
+	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-deny-udp
+	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-any
+	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-tcp
 	$(MAKE) --no-print-directory wait-for-workloads
+
 	kubectl apply -f testdata/policy/l3.yaml
+	kubectl apply -f testdata/policy/l4.yaml
 
 .PHONY: install-policy-viewer
 install-policy-viewer:
