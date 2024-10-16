@@ -127,8 +127,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	case OutputSimple:
 		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
 		if !rootOptions.noHeaders {
-			_, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n"))
-			if err != nil {
+			if _, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n")); err != nil {
 				return err
 			}
 		}
