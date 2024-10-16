@@ -132,8 +132,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 			}
 		}
 		for _, p := range policyList {
-			_, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name)))
-			if err != nil {
+			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name))); err != nil {
 				return err
 			}
 		}

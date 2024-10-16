@@ -26,12 +26,11 @@ func runCommand(path string, input []byte, args ...string) ([]byte, []byte, erro
 	if input != nil {
 		cmd.Stdin = bytes.NewReader(input)
 	}
-	err := cmd.Run()
-	if err == nil {
-		return stdout.Bytes(), stderr.Bytes(), nil
+	if err := cmd.Run(); err != nil {
+		_, file := filepath.Split(path)
+		return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("%s failed with %s: stderr=%s", file, err, stderr)
 	}
-	_, file := filepath.Split(path)
-	return stdout.Bytes(), stderr.Bytes(), fmt.Errorf("%s failed with %s: stderr=%s", file, err, stderr)
+	return stdout.Bytes(), stderr.Bytes(), nil
 }
 
 func kubectl(input []byte, args ...string) ([]byte, []byte, error) {
