@@ -43,19 +43,17 @@ type derivedFromEntry struct {
 }
 
 func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
-	if x.Direction != y.Direction {
-		return strings.Compare(x.Direction, y.Direction) < 0
+	ret := strings.Compare(x.Direction, y.Direction)
+	if ret == 0 {
+		ret = strings.Compare(x.Kind, y.Kind)
 	}
-	if x.Kind != y.Kind {
-		return strings.Compare(x.Kind, y.Kind) < 0
+	if ret == 0 {
+		ret = strings.Compare(x.Namespace, y.Namespace)
 	}
-	if x.Namespace != y.Namespace {
-		return strings.Compare(x.Namespace, y.Namespace) < 0
+	if ret == 0 {
+		ret = strings.Compare(x.Name, y.Name)
 	}
-	if x.Name != y.Name {
-		return strings.Compare(x.Name, y.Name) < 0
-	}
-	return false
+	return ret < 0
 }
 
 func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
