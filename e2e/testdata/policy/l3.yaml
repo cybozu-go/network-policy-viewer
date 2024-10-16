@@ -1,6 +1,23 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  name: l3-baseline
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:group: test
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: scapegoat
+  egressDeny:
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: scapegoat
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
   name: l3-egress
 spec:
   endpointSelector:
@@ -10,6 +27,9 @@ spec:
     - toEndpoints:
         - matchLabels:
             k8s:test: l3-ingress-explicit-allow
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l3-ingress-no-rule
     - toEndpoints:
         - matchLabels:
             k8s:test: l3-ingress-implicit-deny

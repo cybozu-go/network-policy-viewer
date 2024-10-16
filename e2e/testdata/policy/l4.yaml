@@ -1,0 +1,115 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l4-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: self
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-ingress-explicit-allow-any
+      toPorts:
+        - ports:
+            - port: "53"
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-ingress-explicit-allow-tcp
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-ingress-explicit-deny-any
+      toPorts:
+        - ports:
+            - port: "53"
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-ingress-explicit-deny-udp
+      toPorts:
+        - ports:
+            - port: "161" # SNMP (UDP)
+              protocol: UDP
+  egressDeny:
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-egress-explicit-deny-any
+      toPorts:
+        - ports:
+            - port: "53"
+    - toEndpoints:
+        - matchLabels:
+            k8s:test: l4-egress-explicit-deny-tcp
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l4-ingress-explicit-allow-any
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l4-ingress-explicit-allow-any
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self
+      toPorts:
+        - ports:
+            - port: "53"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l4-ingress-explicit-allow-tcp
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l4-ingress-explicit-allow-tcp
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l4-ingress-explicit-deny-any
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l4-ingress-explicit-deny-any
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self
+      toPorts:
+        - ports:
+            - port: "53"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l4-ingress-explicit-deny-udp
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l4-ingress-explicit-deny-udp
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:test: self
+      toPorts:
+        - ports:
+            - port: "161" # SNMP (UDP)
+              protocol: UDP

@@ -17,6 +17,7 @@ var rootOptions struct {
 	proxySelector string
 	proxyPort     uint16
 	output        string
+	noHeaders     bool
 }
 
 func init() {
@@ -24,6 +25,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootOptions.proxySelector, "proxy-selector", "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
 	rootCmd.PersistentFlags().Uint16Var(&rootOptions.proxyPort, "proxy-port", 8080, "port number of the proxy endpoints")
 	rootCmd.PersistentFlags().StringVarP(&rootOptions.output, "output", "o", OutputSimple, "output format")
+	rootCmd.PersistentFlags().BoolVar(&rootOptions.noHeaders, "no-headers", false, "stop printing header")
 }
 
 var rootCmd = &cobra.Command{}
