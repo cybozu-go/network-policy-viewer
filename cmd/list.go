@@ -42,9 +42,9 @@ type derivedFromEntry struct {
 	Name      string `json:"name"`
 }
 
-func compareDerivedFromEntry(x, y *derivedFromEntry) bool {
-	if x.Direction != y.Direction {
-		return strings.Compare(x.Direction, y.Direction) < 0
+func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
+	if strings.Compare(x.Direction, y.Direction) < 0 {
+		return true
 	}
 	if x.Kind != y.Kind {
 		return strings.Compare(x.Kind, y.Kind) < 0
