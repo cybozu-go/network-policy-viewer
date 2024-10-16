@@ -93,6 +93,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
+	// The same rule appears multiple times in the response, so we need to dedup it
 	policySet := make(map[derivedFromEntry]struct{})
 
 	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
