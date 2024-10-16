@@ -43,8 +43,8 @@ type derivedFromEntry struct {
 }
 
 func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
-	if strings.Compare(x.Direction, y.Direction) < 0 {
-		return true
+	if x.Direction != y.Direction {
+		return strings.Compare(x.Direction, y.Direction) < 0
 	}
 	if x.Kind != y.Kind {
 		return strings.Compare(x.Kind, y.Kind) < 0
@@ -114,7 +114,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	policyList := maps.Keys(policySet)
-	sort.Slice(policyList, func(i, j int) bool { return compareDerivedFromEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
 
 	switch rootOptions.output {
 	case OutputJson:
