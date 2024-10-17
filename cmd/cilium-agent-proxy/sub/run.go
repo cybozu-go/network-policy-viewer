@@ -66,7 +66,26 @@ func handleIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePolicy(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "error\n")
+	param := r.URL.Path[len("/policy/"):]
+	if len(param) == 0 {
+		fmt.Fprint(w, "error\n")
+		return
+	}
+
+	// Convert to number to avoid parameter injection
+	endpoint, err := strconv.Atoi(param)
+	if err != nil {
+		fmt.Fprint(w, "error\n")
+		return
+	}
+
+	stdout, _, err := runCommand(ciliumPath, nil, "bpf", "policy", "get", strconv.Itoa(endpoint), "-ojson")
+	if err != nil {
+		fmt.Fprint(w, "error\n")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(stdout)
 }
 
 func subMain() error {

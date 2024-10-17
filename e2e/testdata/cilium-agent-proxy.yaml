@@ -20,11 +20,13 @@ spec:
           volumeMounts:
             - name: cilium-socket
               mountPath: /var/run/cilium
-          securityContext:
-            capabilities:
-              drop:
-                - ALL
+            - name: bpf
+              mountPath: /sys/fs/bpf
       volumes:
         - name: cilium-socket
           hostPath:
             path: /var/run/cilium
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
