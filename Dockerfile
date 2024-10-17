@@ -19,7 +19,7 @@ FROM ghcr.io/cybozu/ubuntu:22.04
 LABEL org.opencontainers.image.source=https://github.com/cybozu-go/network-policy-viewer
 
 WORKDIR /
+COPY bin/download/cilium /
 COPY --from=builder /work/cilium-agent-proxy /
 
-USER 10000:10000
 ENTRYPOINT ["/cilium-agent-proxy"]

@@ -69,7 +69,26 @@ func handleIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePolicy(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "error\n")
+	param := r.URL.Path[len("/policy/"):]
+	if len(param) == 0 {
+		renderError(w, r.URL.Path, "failed to read endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// Convert to number to avoid parameter injection
+	endpoint, err := strconv.Atoi(param)
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to read endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	stdout, _, err := runCommand(ciliumPath, nil, "bpf", "policy", "get", strconv.Itoa(endpoint), "-ojson")
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to read BPF map", http.StatusInternalServerError)
+		return
+	}
+
+	renderJSON(w, r.URL.Path, stdout, http.StatusOK)
 }
 
 func subMain() error {
