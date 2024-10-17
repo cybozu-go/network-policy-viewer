@@ -76,12 +76,12 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 func runList(ctx context.Context, w io.Writer, name string) error {
 	_, dynamicClient, client, err := createClients(ctx, name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create clients: %w", err)
 	}
 
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}
 
 	params := endpoint.GetEndpointIDParams{
@@ -90,7 +90,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	}
 	response, err := client.Endpoint.GetEndpointID(&params)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get endpoint information: %w", err)
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it

@@ -29,6 +29,10 @@ start:
 		--namespace kube-system \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
+
+	cd ..; docker build . -t cilium-agent-proxy:dev
+	kind load docker-image cilium-agent-proxy:dev
+
 	kustomize build testdata | kubectl apply -f -
 	$(MAKE) --no-print-directory wait-for-workloads
 
