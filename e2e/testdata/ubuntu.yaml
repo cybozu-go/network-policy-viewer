@@ -21,6 +21,7 @@ rules:
       - cilium.io
     resources:
       - ciliumendpoints
+      - ciliumidentities
     verbs:
       - get
       - list
