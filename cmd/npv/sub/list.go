@@ -30,11 +30,6 @@ var listCmd = &cobra.Command{
 	},
 }
 
-const (
-	directionEgress  = "EGRESS"
-	directionIngress = "INGRESS"
-)
-
 type derivedFromEntry struct {
 	Direction string `json:"direction"`
 	Kind      string `json:"kind"`

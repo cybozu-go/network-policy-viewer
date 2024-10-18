@@ -14,6 +14,14 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	directionEgress  = "Egress"
+	directionIngress = "Ingress"
+
+	policyAllow = "Allow"
+	policyDeny  = "Deny"
+)
+
 var cachedCiliumClients map[string]*client.Client
 
 func init() {
