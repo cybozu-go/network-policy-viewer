@@ -14,34 +14,48 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func createClients(ctx context.Context, name string) (*kubernetes.Clientset, *dynamic.DynamicClient, *client.Client, error) {
+var cachedCiliumClients map[string]*client.Client
+
+func init() {
+	cachedCiliumClients = make(map[string]*client.Client)
+}
+
+func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	// Create Kubernetes Clients
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	// Create Cilium Client
+	return clientset, dynamicClient, nil
+}
+
+func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, name string) (*client.Client, error) {
 	endpoint, err := getProxyEndpoint(ctx, clientset, rootOptions.namespace, name)
 	if err != nil {
-		return nil, nil, nil, err
-	}
-	ciliumClient, err := client.NewClient(endpoint)
-	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return clientset, dynamicClient, ciliumClient, err
+	if cached, ok := cachedCiliumClients[endpoint]; ok {
+		return cached, nil
+	}
+
+	ciliumClient, err := client.NewClient(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	cachedCiliumClients[endpoint] = ciliumClient
+
+	return ciliumClient, err
 }
 
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {

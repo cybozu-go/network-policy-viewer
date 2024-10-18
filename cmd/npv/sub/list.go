@@ -74,9 +74,14 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 }
 
 func runList(ctx context.Context, w io.Writer, name string) error {
-	_, dynamicClient, client, err := createClients(ctx, name)
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
-		return fmt.Errorf("failed to create clients: %w", err)
+		return fmt.Errorf("failed to create k8s clients: %w", err)
+	}
+
+	client, err := createCiliumClient(ctx, clientset, name)
+	if err != nil {
+		return fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
