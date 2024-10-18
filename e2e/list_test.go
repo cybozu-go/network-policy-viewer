@@ -14,71 +14,71 @@ func testList() {
 	}{
 		{
 			Selector: "test=self",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-EGRESS,CiliumNetworkPolicy,default,l3-egress
-EGRESS,CiliumNetworkPolicy,default,l4-egress
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Egress,CiliumNetworkPolicy,default,l3-egress
+Egress,CiliumNetworkPolicy,default,l4-egress
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 		{
 			Selector: "test=l3-ingress-explicit-allow",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-ingress-explicit-allow`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-ingress-explicit-allow`,
 		},
 		{
 			Selector: "test=l3-ingress-implicit-deny",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 		{
 			Selector: "test=l3-ingress-explicit-deny",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-ingress-explicit-deny`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-ingress-explicit-deny`,
 		},
 		{
 			Selector: "test=l3-egress-implicit-deny",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 		{
 			Selector: "test=l3-egress-explicit-deny",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 		{
 			Selector: "test=l4-ingress-explicit-allow-any",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l4-ingress-explicit-allow-any`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l4-ingress-explicit-allow-any`,
 		},
 		{
 			Selector: "test=l4-ingress-explicit-allow-tcp",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l4-ingress-explicit-allow-tcp`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l4-ingress-explicit-allow-tcp`,
 		},
 		{
 			Selector: "test=l4-ingress-explicit-deny-any",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l4-ingress-explicit-deny-any`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l4-ingress-explicit-deny-any`,
 		},
 		{
 			Selector: "test=l4-ingress-explicit-deny-udp",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l4-ingress-explicit-deny-udp`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l4-ingress-explicit-deny-udp`,
 		},
 		{
 			Selector: "test=l4-egress-explicit-deny-any",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 		{
 			Selector: "test=l4-egress-explicit-deny-tcp",
-			Expected: `EGRESS,CiliumNetworkPolicy,default,l3-baseline
-INGRESS,CiliumNetworkPolicy,default,l3-baseline`,
+			Expected: `Egress,CiliumNetworkPolicy,default,l3-baseline
+Ingress,CiliumNetworkPolicy,default,l3-baseline`,
 		},
 	}
 

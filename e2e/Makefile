@@ -29,6 +29,10 @@ start:
 		--namespace kube-system \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
+
+	cd ..; docker build . -t cilium-agent-proxy:dev
+	kind load docker-image cilium-agent-proxy:dev
+
 	kustomize build testdata | kubectl apply -f -
 	$(MAKE) --no-print-directory wait-for-workloads
 
@@ -66,7 +70,9 @@ install-policy-viewer:
 	$(MAKE) -C ../ build
 	PODNAME=$$(kubectl get po -l app=ubuntu -o name | cut -d'/' -f2); \
 	kubectl cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
-	kubectl exec $${PODNAME} -- chmod +x /tmp/npv
+	kubectl exec $${PODNAME} -- chmod +x /tmp/npv; \
+	kubectl cp $$(aqua which kubectl) $${PODNAME}:/tmp/; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/kubectl
 
 .PHONY: test
 test:

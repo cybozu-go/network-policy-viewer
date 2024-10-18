@@ -1,4 +1,4 @@
-package cmd
+package sub
 
 import (
 	"context"
@@ -29,11 +29,6 @@ var listCmd = &cobra.Command{
 		return runList(context.Background(), cmd.OutOrStdout(), args[0])
 	},
 }
-
-const (
-	directionEgress  = "EGRESS"
-	directionIngress = "INGRESS"
-)
 
 type derivedFromEntry struct {
 	Direction string `json:"direction"`
@@ -74,14 +69,19 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 }
 
 func runList(ctx context.Context, w io.Writer, name string) error {
-	_, dynamicClient, client, err := createClients(ctx, name)
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create k8s clients: %w", err)
+	}
+
+	client, err := createCiliumClient(ctx, clientset, name)
+	if err != nil {
+		return fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}
 
 	params := endpoint.GetEndpointIDParams{
@@ -90,7 +90,7 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	}
 	response, err := client.Endpoint.GetEndpointID(&params)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get endpoint information: %w", err)
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
