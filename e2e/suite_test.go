@@ -25,4 +25,7 @@ var _ = Describe("Test network-policy-viewer", func() {
 func runTest() {
 	Context("dump", testDump)
 	Context("list", testList)
+	Context("list-manifests", testListManifests)
+	Context("inspect", testInspect)
+	Context("summary", testSummary)
 }

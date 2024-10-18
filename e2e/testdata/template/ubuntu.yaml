@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: default
+  namespace: test
   name: ubuntu
 spec:
   replicas: 1
@@ -13,7 +13,6 @@ spec:
       labels:
         app: ubuntu
     spec:
-      serviceAccountName: ubuntu
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

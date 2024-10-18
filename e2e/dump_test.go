@@ -7,8 +7,8 @@ import (
 
 func testDump() {
 	It("should dump endpoint content", func() {
-		podName := onePodByLabelSelector(Default, "default", "test=self")
-		ret := runViewerSafe(Default, nil, "dump", podName)
+		podName := onePodByLabelSelector(Default, "test", "test=self")
+		ret := runViewerSafe(Default, nil, "dump", "-n=test", podName)
 		state := jqSafe(Default, ret, "-r", ".status.state")
 		Expect(string(state)).To(Equal("ready"))
 	})

@@ -13,9 +13,20 @@ import (
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/yaml"
 )
 
+var listOptions struct {
+	manifests bool
+}
+
 func init() {
+	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -29,11 +40,6 @@ var listCmd = &cobra.Command{
 		return runList(context.Background(), cmd.OutOrStdout(), args[0])
 	},
 }
-
-const (
-	directionEgress  = "EGRESS"
-	directionIngress = "INGRESS"
-)
 
 type derivedFromEntry struct {
 	Direction string `json:"direction"`
@@ -59,6 +65,7 @@ func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
 func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 	val := derivedFromEntry{
 		Direction: direction,
+		Namespace: "-",
 	}
 	for _, s := range input {
 		switch {
@@ -74,9 +81,14 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 }
 
 func runList(ctx context.Context, w io.Writer, name string) error {
-	_, dynamicClient, client, err := createClients(ctx, name)
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
-		return fmt.Errorf("failed to create clients: %w", err)
+		return fmt.Errorf("failed to create k8s clients: %w", err)
+	}
+
+	client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
@@ -115,6 +127,10 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	policyList := maps.Keys(policySet)
 	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
 
+	if listOptions.manifests {
+		return listPolicyManifests(ctx, w, dynamicClient, policyList)
+	}
+
 	switch rootOptions.output {
 	case OutputJson:
 		text, err := json.MarshalIndent(policyList, "", "  ")
@@ -139,4 +155,70 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	default:
 		return fmt.Errorf("unknown format: %s", rootOptions.output)
 	}
+}
+
+func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynamic.DynamicClient, policyList []derivedFromEntry) error {
+	// remove direction info and sort again
+	for i := range policyList {
+		policyList[i].Direction = ""
+	}
+	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
+
+	var previous types.NamespacedName
+	first := true
+	for _, p := range policyList {
+		// a same policy may appear twice from egress and ingress rules, so we need to dedup them
+		next := types.NamespacedName{
+			Namespace: p.Namespace,
+			Name:      p.Name,
+		}
+		if previous == next {
+			continue
+		}
+		previous = next
+
+		if !first {
+			if _, err := fmt.Fprintln(w, "---"); err != nil {
+				return err
+			}
+		}
+		first = false
+
+		isCNP := p.Kind == "CiliumNetworkPolicy"
+		gvr := schema.GroupVersionResource{
+			Group:   "cilium.io",
+			Version: "v2",
+		}
+		var resource *unstructured.Unstructured
+		if isCNP {
+			gvr.Resource = "ciliumnetworkpolicies"
+			cnp, err := dynamicClient.Resource(gvr).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			resource = cnp
+		} else {
+			gvr.Resource = "ciliumclusterwidenetworkpolicies"
+			ccnp, err := dynamicClient.Resource(gvr).Get(ctx, p.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			resource = ccnp
+		}
+		unstructured.RemoveNestedField(resource.Object, "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "creationTimestamp")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "generation")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "managedFields")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "resourceVersion")
+		unstructured.RemoveNestedField(resource.Object, "metadata", "uid")
+
+		data, err := yaml.Marshal(resource.Object)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "%s", string(data)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
