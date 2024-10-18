@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"strconv"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/client"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -110,4 +114,63 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 	}
 
 	return endpointID, nil
+}
+
+func getIdentityMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "cilium.io",
+		Version:  "v2",
+		Resource: "ciliumidentities",
+	}
+	li, err := d.Resource(gvr).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]*unstructured.Unstructured)
+	for _, item := range li.Items {
+		id, err := strconv.Atoi(item.GetName())
+		if err != nil {
+			return nil, err
+		}
+		ret[id] = &item
+	}
+	return ret, nil
+}
+
+func getIdentityExampleMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]string, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "cilium.io",
+		Version:  "v2",
+		Resource: "ciliumendpoints",
+	}
+
+	li, err := d.Resource(gvr).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]string)
+	for _, ep := range li.Items {
+		identity, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if _, ok := ret[int(identity)]; ok {
+			ret[int(identity)] += "," + ep.GetName()
+		} else {
+			ret[int(identity)] = ep.GetName()
+		}
+	}
+	for k, v := range ret {
+		if strings.Contains(v, ",") {
+			samples := strings.Split(v, ",")
+			i := rand.Intn(len(samples))
+			ret[k] = samples[i]
+		}
+	}
+	return ret, nil
 }
