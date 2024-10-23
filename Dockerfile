@@ -10,9 +10,10 @@ RUN go mod download
 
 # Copy the go source
 COPY cmd/cilium-agent-proxy/ cmd/cilium-agent-proxy/
+COPY Makefile Makefile
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o cilium-agent-proxy ./cmd/cilium-agent-proxy
+RUN make build-proxy
 
 # Compose the manager container
 FROM ghcr.io/cybozu/ubuntu:22.04
@@ -20,6 +21,6 @@ LABEL org.opencontainers.image.source=https://github.com/cybozu-go/network-polic
 
 WORKDIR /
 COPY bin/download/cilium /
-COPY --from=builder /work/cilium-agent-proxy /
+COPY --from=builder /work/bin/cilium-agent-proxy /
 
 ENTRYPOINT ["/cilium-agent-proxy"]

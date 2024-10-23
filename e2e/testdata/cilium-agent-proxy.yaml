@@ -30,6 +30,7 @@ spec:
         - name: cilium-socket
           hostPath:
             path: /var/run/cilium
+        # "cilium bpf policy get" reads from /sys/fs/bpf
         - name: bpf
           hostPath:
             path: /sys/fs/bpf

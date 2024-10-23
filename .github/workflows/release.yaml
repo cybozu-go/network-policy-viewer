@@ -24,6 +24,8 @@ jobs:
               echo "Tag v${{ inputs.tag }} already exists"
               exit 1
           fi
+      - name: Download Cilium CLI
+        run: make download-cilium-cli
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
