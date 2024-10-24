@@ -1,7 +1,7 @@
 package main
 
-import "github.com/cybozu-go/network-policy-viewer/cmd/npv/sub"
+import "github.com/cybozu-go/network-policy-viewer/cmd/npv/app"
 
 func main() {
-	sub.Execute()
+	app.Execute()
 }
