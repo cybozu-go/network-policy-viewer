@@ -15,15 +15,13 @@ spec:
       securityContext:
         fsGroup: 0
       containers:
-        - image: ghcr.io/cybozu/envoy
-          name: envoy
-          command: ["envoy", "-c", "/etc/envoy/envoy-config.yaml"]
-          args: []
+        - image: ghcr.io/cybozu-go/cilium-agent-proxy
+          name: proxy
           volumeMounts:
             - name: cilium-socket
               mountPath: /var/run/cilium
-            - name: envoy-config
-              mountPath: /etc/envoy
+            - name: bpf
+              mountPath: /sys/fs/bpf
           securityContext:
             capabilities:
               drop:
@@ -32,6 +30,8 @@ spec:
         - name: cilium-socket
           hostPath:
             path: /var/run/cilium
-        - name: envoy-config
-          configMap:
-            name: cilium-agent-proxy
+        # "cilium bpf policy get" reads from /sys/fs/bpf
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate

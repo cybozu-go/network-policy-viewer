@@ -3,6 +3,8 @@ TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
+CILIUM_IMAGE_VERSION := 1.14.14.1
+CILIUM_CLI := $(TOOLS_DIR)/cilium
 CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 STATICCHECK := $(TOOLS_DIR)/staticcheck
@@ -26,6 +28,13 @@ setup: $(CUSTOMCHECKER) $(STATICCHECK) ## Install necessary tools
 	$(HELM) repo add cilium https://helm.cilium.io/
 	$(HELM) repo update cilium
 
+.PHONY: download-cilium-cli
+download-cilium-cli:
+	mkdir -p $(TOOLS_DIR)
+	CONTAINER_ID=$$(docker run --rm --detach --entrypoint pause ghcr.io/cybozu/cilium:$(CILIUM_IMAGE_VERSION)); \
+	docker cp $${CONTAINER_ID}:/usr/bin/cilium $(CILIUM_CLI); \
+	docker stop $${CONTAINER_ID}
+
 $(CUSTOMCHECKER):
 	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@latest
 
@@ -42,7 +51,12 @@ clean:
 .PHONY: build
 build: ## Build network-policy-viewer
 	mkdir -p $(BIN_DIR)
-	go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-w -s" -o $(BIN_DIR)/npv ./cmd/npv
+
+.PHONY: build-proxy
+build-proxy: ## Build cilium-agent-proxy
+	mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-w -s" -o $(BIN_DIR)/cilium-agent-proxy ./cmd/cilium-agent-proxy
 
 .PHONY: check-generate
 check-generate:
