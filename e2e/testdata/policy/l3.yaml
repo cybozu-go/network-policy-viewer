@@ -1,6 +1,7 @@
 apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
+kind: CiliumClusterwideNetworkPolicy
 metadata:
+  namespace: test
   name: l3-baseline
 spec:
   endpointSelector:
@@ -18,6 +19,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l3-egress
 spec:
   endpointSelector:
@@ -26,29 +28,30 @@ spec:
   egress:
     - toEndpoints:
         - matchLabels:
-            k8s:test: l3-ingress-explicit-allow
+            k8s:test: l3-ingress-explicit-allow-all
     - toEndpoints:
         - matchLabels:
             k8s:test: l3-ingress-no-rule
     - toEndpoints:
         - matchLabels:
-            k8s:test: l3-ingress-implicit-deny
+            k8s:test: l3-ingress-implicit-deny-all
     - toEndpoints:
         - matchLabels:
-            k8s:test: l3-ingress-explicit-deny
+            k8s:test: l3-ingress-explicit-deny-all
   egressDeny:
     - toEndpoints:
         - matchLabels:
-            k8s:test: l3-egress-explicit-deny
+            k8s:test: l3-egress-explicit-deny-all
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: l3-ingress-explicit-allow
+  namespace: test
+  name: l3-ingress-explicit-allow-all
 spec:
   endpointSelector:
     matchLabels:
-      k8s:test: l3-ingress-explicit-allow
+      k8s:test: l3-ingress-explicit-allow-all
   ingress:
     - fromEndpoints:
         - matchLabels:
@@ -57,11 +60,12 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: l3-ingress-explicit-deny
+  namespace: test
+  name: l3-ingress-explicit-deny-all
 spec:
   endpointSelector:
     matchLabels:
-      k8s:test: l3-ingress-explicit-deny
+      k8s:test: l3-ingress-explicit-deny-all
   ingressDeny:
     - fromEndpoints:
         - matchLabels:
