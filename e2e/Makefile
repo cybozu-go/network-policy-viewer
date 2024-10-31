@@ -48,11 +48,11 @@ run-test-pod-%:
 .PHONY: install-test-pod
 install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-self
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny
-	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny
-	$(MAKE) --no-print-directory run-test-pod-l3-egress-explicit-deny
+	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow-all
+	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny-all
+	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny-all
+	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny-all
+	$(MAKE) --no-print-directory run-test-pod-l3-egress-explicit-deny-all
 
 	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-any
 	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-tcp
@@ -70,7 +70,9 @@ install-policy-viewer:
 	$(MAKE) -C ../ build
 	PODNAME=$$(kubectl get po -l app=ubuntu -o name | cut -d'/' -f2); \
 	kubectl cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
-	kubectl exec $${PODNAME} -- chmod +x /tmp/npv
+	kubectl exec $${PODNAME} -- chmod +x /tmp/npv; \
+	kubectl cp $$(aqua which kubectl) $${PODNAME}:/tmp/; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/kubectl
 
 .PHONY: test
 test:

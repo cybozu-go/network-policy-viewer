@@ -1,6 +1,7 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l4-egress
 spec:
   endpointSelector:
@@ -33,6 +34,11 @@ spec:
         - ports:
             - port: "161" # SNMP (UDP)
               protocol: UDP
+    - toCIDR:
+        - 8.8.8.8/32
+      toPorts:
+        - ports:
+            - port: "53"
   egressDeny:
     - toEndpoints:
         - matchLabels:
@@ -47,10 +53,16 @@ spec:
         - ports:
             - port: "8080"
               protocol: TCP
+    - toCIDR:
+        - 8.8.4.4/32
+      toPorts:
+        - ports:
+            - port: "53"
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l4-ingress-explicit-allow-any
 spec:
   endpointSelector:
@@ -67,6 +79,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l4-ingress-explicit-allow-tcp
 spec:
   endpointSelector:
@@ -84,6 +97,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l4-ingress-explicit-deny-any
 spec:
   endpointSelector:
@@ -100,6 +114,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  namespace: test
   name: l4-ingress-explicit-deny-udp
 spec:
   endpointSelector:

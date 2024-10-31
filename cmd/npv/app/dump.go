@@ -27,7 +27,7 @@ var dumpCmd = &cobra.Command{
 }
 
 func runDump(ctx context.Context, w io.Writer, name string) error {
-	clientset, dynamicClient, _, err := createClients(ctx, name)
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
 	}

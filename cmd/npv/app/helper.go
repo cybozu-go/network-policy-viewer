@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"strconv"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/client"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -14,34 +18,56 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func createClients(ctx context.Context, name string) (*kubernetes.Clientset, *dynamic.DynamicClient, *client.Client, error) {
+const (
+	directionEgress  = "Egress"
+	directionIngress = "Ingress"
+
+	policyAllow = "Allow"
+	policyDeny  = "Deny"
+)
+
+var cachedCiliumClients map[string]*client.Client
+
+func init() {
+	cachedCiliumClients = make(map[string]*client.Client)
+}
+
+func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	// Create Kubernetes Clients
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	// Create Cilium Client
-	endpoint, err := getProxyEndpoint(ctx, clientset, rootOptions.namespace, name)
+	return clientset, dynamicClient, nil
+}
+
+func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*client.Client, error) {
+	endpoint, err := getProxyEndpoint(ctx, clientset, namespace, name)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
+
+	if cached, ok := cachedCiliumClients[endpoint]; ok {
+		return cached, nil
+	}
+
 	ciliumClient, err := client.NewClient(endpoint)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
+	cachedCiliumClients[endpoint] = ciliumClient
 
-	return clientset, dynamicClient, ciliumClient, err
+	return ciliumClient, err
 }
 
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
@@ -88,4 +114,67 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 	}
 
 	return endpointID, nil
+}
+
+// key: identity number
+// value: CiliumIdentity resource
+func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "cilium.io",
+		Version:  "v2",
+		Resource: "ciliumidentities",
+	}
+	li, err := d.Resource(gvr).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]*unstructured.Unstructured)
+	for _, item := range li.Items {
+		id, err := strconv.Atoi(item.GetName())
+		if err != nil {
+			return nil, err
+		}
+		ret[id] = &item
+	}
+	return ret, nil
+}
+
+// key: identity number
+// value: example pod name
+func getIdentityExampleMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]string, error) {
+	gvr := schema.GroupVersionResource{
+		Group:    "cilium.io",
+		Version:  "v2",
+		Resource: "ciliumendpoints",
+	}
+
+	li, err := d.Resource(gvr).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]string)
+	for _, ep := range li.Items {
+		identity, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if _, ok := ret[int(identity)]; ok {
+			ret[int(identity)] += "," + ep.GetName()
+		} else {
+			ret[int(identity)] = ep.GetName()
+		}
+	}
+	for k, v := range ret {
+		if strings.Contains(v, ",") {
+			samples := strings.Split(v, ",")
+			i := rand.Intn(len(samples))
+			ret[k] = samples[i]
+		}
+	}
+	return ret, nil
 }
