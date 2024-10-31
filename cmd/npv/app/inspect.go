@@ -120,6 +120,11 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
+	client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to create Cilium client: %w", err)
+	}
+
 	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
 		return err
@@ -167,11 +172,6 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 				entry.Example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
 				// If the identity is in the local scope, it is only valid on the reporting node.
-				client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
-				if err != nil {
-					return fmt.Errorf("failed to create Cilium client: %w", err)
-				}
-
 				params := policy.GetIdentityIDParams{
 					Context: ctx,
 					ID:      strconv.FormatInt(int64(p.Key.Identity), 10),
