@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -62,28 +63,29 @@ func runSummary(ctx context.Context, w io.Writer) error {
 		entry.Namespace = p.Namespace
 		entry.Name = p.Name
 
+		// Skip non-relevant pods
 		if p.Spec.HostNetwork {
-			entry.EgressDeny = -1
-			entry.EgressAllow = -1
-			entry.IngressDeny = -1
-			entry.IngressAllow = -1
-		} else {
-			policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, p.Name)
-			if err != nil {
-				return err
-			}
+			continue
+		}
+		if p.Status.Phase != corev1.PodRunning {
+			continue
+		}
 
-			for _, p := range policies {
-				switch {
-				case p.IsEgressRule() && p.IsDenyRule():
-					entry.EgressDeny++
-				case p.IsEgressRule() && !p.IsDenyRule():
-					entry.EgressAllow++
-				case !p.IsEgressRule() && p.IsDenyRule():
-					entry.IngressDeny++
-				case !p.IsEgressRule() && !p.IsDenyRule():
-					entry.IngressAllow++
-				}
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, p.Name)
+		if err != nil {
+			return err
+		}
+
+		for _, p := range policies {
+			switch {
+			case p.IsEgressRule() && p.IsDenyRule():
+				entry.EgressDeny++
+			case p.IsEgressRule() && !p.IsDenyRule():
+				entry.EgressAllow++
+			case !p.IsEgressRule() && p.IsDenyRule():
+				entry.IngressDeny++
+			case !p.IsEgressRule() && !p.IsDenyRule():
+				entry.IngressAllow++
 			}
 		}
 		summary = append(summary, entry)
