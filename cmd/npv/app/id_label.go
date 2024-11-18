@@ -49,7 +49,7 @@ func runIdLabel(ctx context.Context, w io.Writer) error {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("CiliumIdentity resource should have namespace label: %s", item.GetName())
+			continue
 		}
 		if ns != rootOptions.namespace {
 			continue
