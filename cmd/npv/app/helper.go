@@ -28,6 +28,18 @@ const (
 
 var cachedCiliumClients map[string]*client.Client
 
+var gvrEndpoint schema.GroupVersionResource = schema.GroupVersionResource{
+	Group:    "cilium.io",
+	Version:  "v2",
+	Resource: "ciliumendpoints",
+}
+
+var gvrIdentity schema.GroupVersionResource = schema.GroupVersionResource{
+	Group:    "cilium.io",
+	Version:  "v2",
+	Resource: "ciliumidentities",
+}
+
 func init() {
 	cachedCiliumClients = make(map[string]*client.Client)
 }
@@ -94,13 +106,7 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 }
 
 func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
-	gvr := schema.GroupVersionResource{
-		Group:    "cilium.io",
-		Version:  "v2",
-		Resource: "ciliumendpoints",
-	}
-
-	ep, err := d.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return 0, err
 	}
@@ -119,12 +125,7 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 // key: identity number
 // value: CiliumIdentity resource
 func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {
-	gvr := schema.GroupVersionResource{
-		Group:    "cilium.io",
-		Version:  "v2",
-		Resource: "ciliumidentities",
-	}
-	li, err := d.Resource(gvr).List(ctx, metav1.ListOptions{})
+	li, err := d.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -143,13 +144,7 @@ func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[
 // key: identity number
 // value: example pod name
 func getIdentityExampleMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]string, error) {
-	gvr := schema.GroupVersionResource{
-		Group:    "cilium.io",
-		Version:  "v2",
-		Resource: "ciliumendpoints",
-	}
-
-	li, err := d.Resource(gvr).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	li, err := d.Resource(gvrEndpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
