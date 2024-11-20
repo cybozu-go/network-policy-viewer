@@ -9,12 +9,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/rand"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -135,7 +135,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	examples, err := getIdentityExampleMap(ctx, dynamicClient)
+	idEndpoints, err := getIdentityEndpoints(ctx, dynamicClient)
 	if err != nil {
 		return err
 	}
@@ -164,8 +164,9 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 			}
 		}
 		entry.Example = "-"
-		if v, ok := examples[p.Key.Identity]; ok {
-			entry.Example = v
+		if v, ok := idEndpoints[p.Key.Identity]; ok {
+			i := rand.Intn(len(v))
+			entry.Example = v[i].GetName()
 		} else {
 			idObj := identity.NumericIdentity(p.Key.Identity)
 			if idObj.IsReservedIdentity() {
@@ -209,39 +210,20 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	// I don't know it is safe to sort the result of "cilium bpf policy get", so let's keep the original order.
-	switch rootOptions.output {
-	case OutputJson:
-		text, err := json.MarshalIndent(arr, "", "  ")
-		if err != nil {
-			return err
+	header := []string{"POLICY", "DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "PACKETS"}
+	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
+		p := arr[index]
+		var protocol, port string
+		if p.WildcardProtocol {
+			protocol = "ANY"
+		} else {
+			protocol = u8proto.U8proto(p.Protocol).String()
 		}
-		_, err = w.Write(text)
-		return err
-	case OutputSimple:
-		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("POLICY\tDIRECTION\tIDENTITY\tNAMESPACE\tEXAMPLE\tPROTOCOL\tPORT\tBYTES\tPACKETS\n")); err != nil {
-				return err
-			}
+		if p.WildcardPort {
+			port = "ANY"
+		} else {
+			port = strconv.Itoa(p.Port)
 		}
-		for _, p := range arr {
-			var protocol, port string
-			if p.WildcardProtocol {
-				protocol = "ANY"
-			} else {
-				protocol = u8proto.U8proto(p.Protocol).String()
-			}
-			if p.WildcardPort {
-				port = "ANY"
-			} else {
-				port = strconv.Itoa(p.Port)
-			}
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", p.Policy, p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, p.Bytes, p.Packets))); err != nil {
-				return err
-			}
-		}
-		return tw.Flush()
-	default:
-		return fmt.Errorf("unknown format: %s", rootOptions.output)
-	}
+		return []any{p.Policy, p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, p.Bytes, p.Packets}
+	})
 }

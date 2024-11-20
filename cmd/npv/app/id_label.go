@@ -2,14 +2,11 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"maps"
 	"slices"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,29 +77,9 @@ func runIdLabel(ctx context.Context, w io.Writer) error {
 	keys := slices.Collect(maps.Keys(labelMap))
 	sort.Strings(keys)
 
-	switch rootOptions.output {
-	case OutputJson:
-		text, err := json.MarshalIndent(labelMap, "", "  ")
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(text)
-		return err
-	case OutputSimple:
-		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("LABEL\tCOUNT\tVALUES\n")); err != nil {
-				return err
-			}
-		}
-		for _, k := range keys {
-			li := labelMap[k]
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\n", k, len(li), strings.Join(li, ",")))); err != nil {
-				return err
-			}
-		}
-		return tw.Flush()
-	default:
-		return fmt.Errorf("unknown format: %s", rootOptions.output)
-	}
+	return writeSimpleOrJson(w, labelMap, []string{"LABEL", "COUNT", "VALUES"}, len(keys), func(index int) []any {
+		k := keys[index]
+		li := labelMap[k]
+		return []any{k, len(li), strings.Join(li, ",")}
+	})
 }

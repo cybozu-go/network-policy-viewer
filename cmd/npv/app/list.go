@@ -2,20 +2,17 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/yaml"
@@ -131,30 +128,10 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return listPolicyManifests(ctx, w, dynamicClient, policyList)
 	}
 
-	switch rootOptions.output {
-	case OutputJson:
-		text, err := json.MarshalIndent(policyList, "", "  ")
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(text)
-		return err
-	case OutputSimple:
-		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("DIRECTION\tKIND\tNAMESPACE\tNAME\n")); err != nil {
-				return err
-			}
-		}
-		for _, p := range policyList {
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\n", p.Direction, p.Kind, p.Namespace, p.Name))); err != nil {
-				return err
-			}
-		}
-		return tw.Flush()
-	default:
-		return fmt.Errorf("unknown format: %s", rootOptions.output)
-	}
+	return writeSimpleOrJson(w, policyList, []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}, len(policyList), func(index int) []any {
+		p := policyList[index]
+		return []any{p.Direction, p.Kind, p.Namespace, p.Name}
+	})
 }
 
 func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynamic.DynamicClient, policyList []derivedFromEntry) error {
@@ -185,21 +162,15 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		first = false
 
 		isCNP := p.Kind == "CiliumNetworkPolicy"
-		gvr := schema.GroupVersionResource{
-			Group:   "cilium.io",
-			Version: "v2",
-		}
 		var resource *unstructured.Unstructured
 		if isCNP {
-			gvr.Resource = "ciliumnetworkpolicies"
-			cnp, err := dynamicClient.Resource(gvr).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
+			cnp, err := dynamicClient.Resource(gvrNetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			resource = cnp
 		} else {
-			gvr.Resource = "ciliumclusterwidenetworkpolicies"
-			ccnp, err := dynamicClient.Resource(gvr).Get(ctx, p.Name, metav1.GetOptions{})
+			ccnp, err := dynamicClient.Resource(gvrClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
