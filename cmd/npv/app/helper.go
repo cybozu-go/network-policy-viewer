@@ -2,43 +2,24 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"io"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/cilium/cilium/pkg/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-const (
-	directionEgress  = "Egress"
-	directionIngress = "Ingress"
-
-	policyAllow = "Allow"
-	policyDeny  = "Deny"
-)
-
 var cachedCiliumClients map[string]*client.Client
-
-var gvrEndpoint schema.GroupVersionResource = schema.GroupVersionResource{
-	Group:    "cilium.io",
-	Version:  "v2",
-	Resource: "ciliumendpoints",
-}
-
-var gvrIdentity schema.GroupVersionResource = schema.GroupVersionResource{
-	Group:    "cilium.io",
-	Version:  "v2",
-	Resource: "ciliumidentities",
-}
 
 func init() {
 	cachedCiliumClients = make(map[string]*client.Client)
@@ -142,34 +123,56 @@ func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[
 }
 
 // key: identity number
-// value: example pod name
-func getIdentityExampleMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]string, error) {
+// value: CiliumEndpoint array
+func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[int][]*unstructured.Unstructured, error) {
 	li, err := d.Resource(gvrEndpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make(map[int]string)
+	ret := make(map[int][]*unstructured.Unstructured)
 	for _, ep := range li.Items {
-		identity, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
+		identity64, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
+		identity := int(identity64)
 		if err != nil {
 			return nil, err
 		}
 		if !ok {
 			continue
 		}
-		if _, ok := ret[int(identity)]; ok {
-			ret[int(identity)] += "," + ep.GetName()
-		} else {
-			ret[int(identity)] = ep.GetName()
-		}
-	}
-	for k, v := range ret {
-		if strings.Contains(v, ",") {
-			samples := strings.Split(v, ",")
-			i := rand.Intn(len(samples))
-			ret[k] = samples[i]
-		}
+		ret[identity] = append(ret[identity], &ep)
 	}
 	return ret, nil
+}
+
+func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {
+	switch rootOptions.output {
+	case OutputJson:
+		text, err := json.MarshalIndent(content, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(text)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte{'\n'})
+		return err
+	case OutputSimple:
+		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
+		if !rootOptions.noHeaders {
+			if _, err := tw.Write([]byte(strings.Join(header, "\t") + "\n")); err != nil {
+				return err
+			}
+		}
+		for i := range count {
+			format := strings.Repeat("%v\t", len(header)-1) + "%v\n"
+			if _, err := tw.Write([]byte(fmt.Sprintf(format, values(i)...))); err != nil {
+				return err
+			}
+		}
+		return tw.Flush()
+	default:
+		return fmt.Errorf("unknown format: %s", rootOptions.output)
+	}
 }

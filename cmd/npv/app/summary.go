@@ -2,12 +2,9 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -92,28 +89,9 @@ func runSummary(ctx context.Context, w io.Writer) error {
 	}
 	sort.Slice(summary, func(i, j int) bool { return lessSummaryEntry(&summary[i], &summary[j]) })
 
-	switch rootOptions.output {
-	case OutputJson:
-		text, err := json.MarshalIndent(summary, "", "  ")
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(text)
-		return err
-	case OutputSimple:
-		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("NAMESPACE\tNAME\tINGRESS-ALLOW\tINGRESS-DENY\tEGRESS-ALLOW\tEGRESS-DENY\n")); err != nil {
-				return err
-			}
-		}
-		for _, p := range summary {
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\n", p.Namespace, p.Name, p.IngressAllow, p.IngressDeny, p.EgressAllow, p.EgressDeny))); err != nil {
-				return err
-			}
-		}
-		return tw.Flush()
-	default:
-		return fmt.Errorf("unknown format: %s", rootOptions.output)
-	}
+	header := []string{"NAMESPACE", "NAME", "INGRESS-ALLOW", "INGRESS-DENY", "EGRESS-ALLOW", "EGRESS-DENY"}
+	return writeSimpleOrJson(w, summary, header, len(summary), func(index int) []any {
+		p := summary[index]
+		return []any{p.Namespace, p.Name, p.IngressAllow, p.IngressDeny, p.EgressAllow, p.EgressDeny}
+	})
 }

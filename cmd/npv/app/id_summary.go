@@ -2,13 +2,10 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"maps"
 	"slices"
 	"sort"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,28 +53,8 @@ func runIdSummary(ctx context.Context, w io.Writer) error {
 	keys := slices.Collect(maps.Keys(countMap))
 	sort.Strings(keys)
 
-	switch rootOptions.output {
-	case OutputJson:
-		text, err := json.MarshalIndent(countMap, "", "  ")
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(text)
-		return err
-	case OutputSimple:
-		tw := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-		if !rootOptions.noHeaders {
-			if _, err := tw.Write([]byte("NAMESPACE\tIDENTITY\n")); err != nil {
-				return err
-			}
-		}
-		for _, k := range keys {
-			if _, err := tw.Write([]byte(fmt.Sprintf("%v\t%v\n", k, countMap[k]))); err != nil {
-				return err
-			}
-		}
-		return tw.Flush()
-	default:
-		return fmt.Errorf("unknown format: %s", rootOptions.output)
-	}
+	return writeSimpleOrJson(w, countMap, []string{"NAMESPACE", "IDENTITY"}, len(keys), func(index int) []any {
+		k := keys[index]
+		return []any{k, countMap[k]}
+	})
 }

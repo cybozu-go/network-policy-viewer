@@ -27,7 +27,8 @@ func testIdLabel() {
     "l4-ingress-explicit-deny-udp",
     "self"
   ]
-}`
+}
+`
 	It("should show Security Identity label cardinality", func() {
 		result := runViewerSafe(Default, nil, "id", "label", "-n=test", "-o=json")
 		Expect(string(result)).To(Equal(expected))
