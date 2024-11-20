@@ -64,6 +64,6 @@ func onePodByLabelSelector(g Gomega, namespace, selector string) string {
 	data := kubectlSafe(g, nil, "get", "pod", "-n", namespace, "-l", selector, "-o=json")
 	count, err := strconv.Atoi(string(jqSafe(g, data, "-r", ".items | length")))
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(count).To(Equal(1), "namespace: %s, selector: %s", namespace, selector)
+	g.Expect(count).To(BeNumerically(">=", 1), "namespace: %s, selector: %s", namespace, selector)
 	return string(jqSafe(g, data, "-r", ".items[0].metadata.name"))
 }

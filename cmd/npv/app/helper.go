@@ -103,6 +103,23 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 	return endpointID, nil
 }
 
+func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
+	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return 0, err
+	}
+
+	identity, found, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
+	if err != nil {
+		return 0, err
+	}
+	if !found {
+		return 0, errors.New("pod does not have security identity")
+	}
+
+	return identity, nil
+}
+
 // key: identity number
 // value: CiliumIdentity resource
 func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {

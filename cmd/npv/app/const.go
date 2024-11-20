@@ -33,3 +33,9 @@ var gvrClusterwideNetworkPolicy schema.GroupVersionResource = schema.GroupVersio
 	Version:  "v2",
 	Resource: "ciliumclusterwidenetworkpolicies",
 }
+
+var gvkNetworkPolicy schema.GroupVersionKind = schema.GroupVersionKind{
+	Group:   "cilium.io",
+	Version: "v2",
+	Kind:    "CiliumNetworkPolicy",
+}

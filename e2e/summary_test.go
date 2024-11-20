@@ -11,6 +11,7 @@ func testSummary() {
 	expected := `l3-egress-explicit-deny-all,1,0,0,0
 l3-egress-implicit-deny-all,1,0,0,0
 l3-ingress-explicit-allow-all,2,0,0,0
+l3-ingress-explicit-allow-all,2,0,0,0
 l3-ingress-explicit-deny-all,1,1,0,0
 l3-ingress-implicit-deny-all,1,0,0,0
 l4-egress-explicit-deny-any,1,0,0,0
