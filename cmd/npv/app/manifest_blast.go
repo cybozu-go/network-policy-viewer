@@ -33,13 +33,13 @@ var manifestBlastCmd = &cobra.Command{
 }
 
 type manifestBlastEntry struct {
-	Direction string `json:"direction"`
+	Side      string `json:"side"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
 func lessManifestBlastEntry(x, y *manifestBlastEntry) bool {
-	ret := strings.Compare(x.Direction, y.Direction)
+	ret := strings.Compare(x.Side, y.Side)
 	if ret == 0 {
 		ret = strings.Compare(x.Namespace, y.Namespace)
 	}
@@ -85,7 +85,7 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 
 	for _, ep := range idEndpoints[int(fromIdentity)] {
 		entry := manifestBlastEntry{
-			Direction: directionEgress,
+			Side:      "From",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),
 		}
@@ -93,14 +93,14 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 	}
 	for _, ep := range idEndpoints[int(toIdentity)] {
 		entry := manifestBlastEntry{
-			Direction: directionIngress,
+			Side:      "To",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),
 		}
 		arr = append(arr, entry)
 	}
-	return writeSimpleOrJson(w, arr, []string{"DIRECTION", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
+	return writeSimpleOrJson(w, arr, []string{"SIDE", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
 		ep := arr[index]
-		return []any{ep.Direction, ep.Namespace, ep.Name}
+		return []any{ep.Side, ep.Namespace, ep.Name}
 	})
 }

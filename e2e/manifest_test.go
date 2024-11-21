@@ -130,9 +130,9 @@ spec:
 }
 
 func testManifestBlast() {
-	expected := `Egress,test,self
-Ingress,test,l3-ingress-explicit-allow-all
-Ingress,test,l3-ingress-explicit-allow-all`
+	expected := `From,test,self
+To,test,l3-ingress-explicit-allow-all
+To,test,l3-ingress-explicit-allow-all`
 
 	It("should show blast radius", func() {
 		from := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
@@ -141,7 +141,7 @@ Ingress,test,l3-ingress-explicit-allow-all`
 		// remove hash suffix from pod names
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | split("-") | .[0:5] | join("-"))]`)
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | if startswith("self") then "self" else . end)]`)
-		result = jqSafe(Default, result, "-r", `.[] | [.direction, .namespace, .name] | @csv`)
+		result = jqSafe(Default, result, "-r", `.[] | [.side, .namespace, .name] | @csv`)
 		resultString := strings.Replace(string(result), `"`, "", -1)
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)
 	})
