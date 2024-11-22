@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 )
 
@@ -45,14 +43,6 @@ var manifestGenerateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runManifestGenerate(context.Background(), cmd.OutOrStdout())
 	},
-}
-
-func parseNamespacedName(nn string) (types.NamespacedName, error) {
-	li := strings.Split(nn, "/")
-	if len(li) != 2 {
-		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
-	}
-	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
 }
 
 func runManifestGenerate(ctx context.Context, w io.Writer) error {
@@ -105,7 +95,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	if !ok {
-		return errors.New("subject does not have security labels")
+		return fmt.Errorf("pod %s/%s is not assigned security labels", sub.Namespace, sub.Name)
 	}
 
 	objIdentity, err := getPodIdentity(ctx, dynamicClient, obj.Namespace, obj.Name)
@@ -123,7 +113,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	if !ok {
-		return errors.New("object does not have security labels")
+		return fmt.Errorf("pod %s/%s is not assigned security labels", obj.Namespace, obj.Name)
 	}
 
 	policyName := manifestGenerateOptions.name

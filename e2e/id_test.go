@@ -40,6 +40,6 @@ func testIdSummary() {
 	It("should show ID summary", func() {
 		result := runViewerSafe(Default, nil, "id", "summary", "-o=json")
 		result = jqSafe(Default, result, "-c")
-		Expect(string(result)).To(Equal(expected))
+		Expect(string(result)).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", string(result), expected)
 	})
 }

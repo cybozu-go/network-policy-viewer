@@ -33,13 +33,13 @@ var manifestBlastCmd = &cobra.Command{
 }
 
 type manifestBlastEntry struct {
-	Side      string `json:"side"`
+	Part      string `json:"part"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
 func lessManifestBlastEntry(x, y *manifestBlastEntry) bool {
-	ret := strings.Compare(x.Side, y.Side)
+	ret := strings.Compare(x.Part, y.Part)
 	if ret == 0 {
 		ret = strings.Compare(x.Namespace, y.Namespace)
 	}
@@ -54,10 +54,14 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 		return errors.New("--from and --to options are required")
 	}
 
-	fromSlice := strings.Split(manifestBlastOptions.from, "/")
-	toSlice := strings.Split(manifestBlastOptions.to, "/")
-	if len(fromSlice) != 2 || len(toSlice) != 2 {
-		return errors.New("--from and --to should be NAMESPACE/POD")
+	from, err := parseNamespacedName(manifestBlastOptions.from)
+	if err != nil {
+		return errors.New("--from and --to should be specified as NAMESPACE/POD")
+	}
+
+	to, err := parseNamespacedName(manifestBlastOptions.to)
+	if err != nil {
+		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
 
 	_, dynamicClient, err := createK8sClients()
@@ -65,12 +69,12 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	fromIdentity, err := getPodIdentity(ctx, dynamicClient, fromSlice[0], fromSlice[1])
+	fromIdentity, err := getPodIdentity(ctx, dynamicClient, from.Namespace, from.Name)
 	if err != nil {
 		return err
 	}
 
-	toIdentity, err := getPodIdentity(ctx, dynamicClient, toSlice[0], toSlice[1])
+	toIdentity, err := getPodIdentity(ctx, dynamicClient, to.Namespace, to.Name)
 	if err != nil {
 		return err
 	}
@@ -85,7 +89,7 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 
 	for _, ep := range idEndpoints[int(fromIdentity)] {
 		entry := manifestBlastEntry{
-			Side:      "From",
+			Part:      "From",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),
 		}
@@ -93,14 +97,14 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 	}
 	for _, ep := range idEndpoints[int(toIdentity)] {
 		entry := manifestBlastEntry{
-			Side:      "To",
+			Part:      "To",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),
 		}
 		arr = append(arr, entry)
 	}
-	return writeSimpleOrJson(w, arr, []string{"SIDE", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
+	return writeSimpleOrJson(w, arr, []string{"PART", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
 		ep := arr[index]
-		return []any{ep.Side, ep.Namespace, ep.Name}
+		return []any{ep.Part, ep.Namespace, ep.Name}
 	})
 }

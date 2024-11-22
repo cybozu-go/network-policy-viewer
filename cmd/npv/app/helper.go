@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -97,7 +98,7 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 		return 0, err
 	}
 	if !found {
-		return 0, errors.New("endpoint resource is broken")
+		return 0, fmt.Errorf("endpoint resource %s/%s is broken", namespace, name)
 	}
 
 	return endpointID, nil
@@ -160,6 +161,14 @@ func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[in
 		ret[identity] = append(ret[identity], &ep)
 	}
 	return ret, nil
+}
+
+func parseNamespacedName(nn string) (types.NamespacedName, error) {
+	li := strings.Split(nn, "/")
+	if len(li) != 2 {
+		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
+	}
+	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
 }
 
 func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {

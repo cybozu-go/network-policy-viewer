@@ -141,7 +141,7 @@ To,test,l3-ingress-explicit-allow-all`
 		// remove hash suffix from pod names
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | split("-") | .[0:5] | join("-"))]`)
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | if startswith("self") then "self" else . end)]`)
-		result = jqSafe(Default, result, "-r", `.[] | [.side, .namespace, .name] | @csv`)
+		result = jqSafe(Default, result, "-r", `.[] | [.part, .namespace, .name] | @csv`)
 		resultString := strings.Replace(string(result), `"`, "", -1)
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)
 	})
