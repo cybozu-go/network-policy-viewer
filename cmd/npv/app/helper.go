@@ -114,7 +114,7 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 		return 0, err
 	}
 	if !found {
-		return 0, errors.New("pod does not have security identity")
+		return 0, fmt.Errorf("pod %s/%s does not have security identity", namespace, name)
 	}
 
 	return identity, nil
