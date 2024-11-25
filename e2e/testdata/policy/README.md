@@ -2,7 +2,8 @@
 
 | Target | From self (Egress) | To pod (Ingress) |
 |-|-|-|
-| l3-ingress-explicit-allow-all | allow | allow |
+| l3-ingress-explicit-allow-all (1) | allow | allow |
+| l3-ingress-explicit-allow-all (2) | allow | allow |
 | l3-ingress-implicit-deny-all | allow | - |
 | l3-ingress-explicit-deny-all | allow | deny |
 | l3-egress-implicit-deny-all | - | - |
