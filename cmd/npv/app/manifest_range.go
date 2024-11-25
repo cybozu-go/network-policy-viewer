@@ -10,35 +10,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var manifestBlastOptions struct {
+var manifestRangeOptions struct {
 	from string
 	to   string
 }
 
 func init() {
-	manifestBlastCmd.Flags().StringVar(&manifestBlastOptions.from, "from", "", "egress pod")
-	manifestBlastCmd.Flags().StringVar(&manifestBlastOptions.to, "to", "", "ingress pod")
-	manifestCmd.AddCommand(manifestBlastCmd)
+	manifestRangeCmd.Flags().StringVar(&manifestRangeOptions.from, "from", "", "egress pod")
+	manifestRangeCmd.Flags().StringVar(&manifestRangeOptions.to, "to", "", "ingress pod")
+	manifestCmd.AddCommand(manifestRangeCmd)
 }
 
-var manifestBlastCmd = &cobra.Command{
-	Use:   "blast",
-	Short: "Show blast radius of a generated manifest",
-	Long:  `Show blast radius of a generated manifest`,
+var manifestRangeCmd = &cobra.Command{
+	Use:   "range",
+	Short: "List affected pods of a generated manifest",
+	Long:  `List affected pods of a generated manifest`,
 
 	Args: cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runManifestBlast(context.Background(), cmd.OutOrStdout())
+		return runManifestRange(context.Background(), cmd.OutOrStdout())
 	},
 }
 
-type manifestBlastEntry struct {
+type manifestRangeEntry struct {
 	Part      string `json:"part"`
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 }
 
-func lessManifestBlastEntry(x, y *manifestBlastEntry) bool {
+func lessManifestRangeEntry(x, y *manifestRangeEntry) bool {
 	ret := strings.Compare(x.Part, y.Part)
 	if ret == 0 {
 		ret = strings.Compare(x.Namespace, y.Namespace)
@@ -49,17 +49,17 @@ func lessManifestBlastEntry(x, y *manifestBlastEntry) bool {
 	return ret < 0
 }
 
-func runManifestBlast(ctx context.Context, w io.Writer) error {
-	if manifestBlastOptions.from == "" || manifestBlastOptions.to == "" {
+func runManifestRange(ctx context.Context, w io.Writer) error {
+	if manifestRangeOptions.from == "" || manifestRangeOptions.to == "" {
 		return errors.New("--from and --to options are required")
 	}
 
-	from, err := parseNamespacedName(manifestBlastOptions.from)
+	from, err := parseNamespacedName(manifestRangeOptions.from)
 	if err != nil {
 		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
 
-	to, err := parseNamespacedName(manifestBlastOptions.to)
+	to, err := parseNamespacedName(manifestRangeOptions.to)
 	if err != nil {
 		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
@@ -84,11 +84,11 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	arr := make([]manifestBlastEntry, 0)
-	sort.Slice(arr, func(i, j int) bool { return lessManifestBlastEntry(&arr[i], &arr[j]) })
+	arr := make([]manifestRangeEntry, 0)
+	sort.Slice(arr, func(i, j int) bool { return lessManifestRangeEntry(&arr[i], &arr[j]) })
 
 	for _, ep := range idEndpoints[int(fromIdentity)] {
-		entry := manifestBlastEntry{
+		entry := manifestRangeEntry{
 			Part:      "From",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),
@@ -96,7 +96,7 @@ func runManifestBlast(ctx context.Context, w io.Writer) error {
 		arr = append(arr, entry)
 	}
 	for _, ep := range idEndpoints[int(toIdentity)] {
-		entry := manifestBlastEntry{
+		entry := manifestRangeEntry{
 			Part:      "To",
 			Namespace: ep.GetNamespace(),
 			Name:      ep.GetName(),

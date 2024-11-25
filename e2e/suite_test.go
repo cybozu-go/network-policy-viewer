@@ -31,5 +31,5 @@ func runTest() {
 	Context("inspect", testInspect)
 	Context("summary", testSummary)
 	Context("manifest-generate", testManifestGenerate)
-	Context("manifest-blast", testManifestBlast)
+	Context("manifest-range", testManifestRange)
 }

@@ -129,15 +129,15 @@ spec:
 	})
 }
 
-func testManifestBlast() {
+func testManifestRange() {
 	expected := `From,test,self
 To,test,l3-ingress-explicit-allow-all
 To,test,l3-ingress-explicit-allow-all`
 
-	It("should show blast radius", func() {
+	It("should list affected pods", func() {
 		from := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
 		to := "--to=test/" + onePodByLabelSelector(Default, "test", "test=l3-ingress-explicit-allow-all")
-		result := runViewerSafe(Default, nil, "manifest", "blast", from, to, "-o=json")
+		result := runViewerSafe(Default, nil, "manifest", "range", from, to, "-o=json")
 		// remove hash suffix from pod names
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | split("-") | .[0:5] | join("-"))]`)
 		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | if startswith("self") then "self" else . end)]`)
