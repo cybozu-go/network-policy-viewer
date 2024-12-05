@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var cachedCiliumClients map[string]*client.Client
@@ -27,7 +27,7 @@ func init() {
 }
 
 func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
-	config, err := rest.InClusterConfig()
+	config, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, nil, err
 	}
