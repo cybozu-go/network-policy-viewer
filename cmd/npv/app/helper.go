@@ -121,6 +121,26 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return identity, nil
 }
 
+func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string) ([]corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]corev1.Pod, 0)
+	for _, p := range pods.Items {
+		// Skip non-relevant pods
+		if p.Spec.HostNetwork {
+			continue
+		}
+		if p.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ret = append(ret, p)
+	}
+	return ret, nil
+}
+
 // key: identity number
 // value: CiliumIdentity resource
 func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {

@@ -33,6 +33,7 @@ var inspectCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runInspect(context.Background(), cmd.OutOrStdout(), args[0])
 	},
+	ValidArgsFunction: completePods,
 }
 
 type policyEntryKey struct {
