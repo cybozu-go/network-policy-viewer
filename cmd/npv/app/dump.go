@@ -24,6 +24,7 @@ var dumpCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runDump(context.Background(), cmd.OutOrStdout(), args[0])
 	},
+	ValidArgsFunction: completePods,
 }
 
 func runDump(ctx context.Context, w io.Writer, name string) error {

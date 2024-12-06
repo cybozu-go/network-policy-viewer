@@ -36,6 +36,7 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runList(context.Background(), cmd.OutOrStdout(), args[0])
 	},
+	ValidArgsFunction: completePods,
 }
 
 type derivedFromEntry struct {

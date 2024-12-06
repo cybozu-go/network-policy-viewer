@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var cachedCiliumClients map[string]*client.Client
@@ -27,7 +27,7 @@ func init() {
 }
 
 func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
-	config, err := rest.InClusterConfig()
+	config, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -119,6 +119,26 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	}
 
 	return identity, nil
+}
+
+func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string) ([]corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]corev1.Pod, 0)
+	for _, p := range pods.Items {
+		// Skip non-relevant pods
+		if p.Spec.HostNetwork {
+			continue
+		}
+		if p.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ret = append(ret, p)
+	}
+	return ret, nil
 }
 
 // key: identity number

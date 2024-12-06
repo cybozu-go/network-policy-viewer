@@ -12,6 +12,7 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - namespaces
       - pods
     verbs:
       - get
@@ -58,9 +59,6 @@ spec:
         app: ubuntu
     spec:
       serviceAccountName: ubuntu
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
       containers:
         - name: ubuntu
           args:

@@ -72,10 +72,18 @@ install-test-pod:
 install-policy-viewer:
 	$(MAKE) -C ../ build
 	PODNAME=$$(kubectl get po -l app=ubuntu -o name | cut -d'/' -f2); \
+	kubectl cp testdata/onboard $${PODNAME}:/tmp/; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/onboard; \
+	kubectl exec $${PODNAME} -- /tmp/onboard; \
 	kubectl cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
 	kubectl exec $${PODNAME} -- chmod +x /tmp/npv; \
 	kubectl cp $$(aqua which kubectl) $${PODNAME}:/tmp/; \
 	kubectl exec $${PODNAME} -- chmod +x /tmp/kubectl
+
+.PHONY: pilot
+pilot:
+	@PODNAME=$$(kubectl get po -l app=ubuntu -o name | cut -d'/' -f2); \
+	kubectl exec -it $${PODNAME} -- bash
 
 .PHONY: test
 test:
