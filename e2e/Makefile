@@ -63,6 +63,7 @@ install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-deny-udp
 	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-any
 	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-tcp
+	$(MAKE) --no-print-directory run-test-pod-l4-ingress-all-allow-tcp
 	$(MAKE) --no-print-directory wait-for-workloads
 
 	kubectl apply -f testdata/policy/l3.yaml
