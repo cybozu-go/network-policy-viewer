@@ -92,6 +92,12 @@ Deny,Ingress,self,false,false,17,161`,
 			Selector: "test=l4-egress-explicit-deny-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
+		{
+			Selector: "test=l4-ingress-all-allow-tcp",
+			Expected: `Allow,Ingress,reserved:host,false,false,6,8080
+Allow,Ingress,reserved:host,true,true,0,0
+Allow,Ingress,reserved:unknown,false,false,6,8080`,
+		},
 	}
 
 	It("should inspect policy configuration", func() {
