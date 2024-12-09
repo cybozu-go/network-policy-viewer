@@ -128,3 +128,18 @@ spec:
         - ports:
             - port: "161" # SNMP (UDP)
               protocol: UDP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  namespace: test
+  name: l4-ingress-all-allow-tcp
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:test: l4-ingress-all-allow-tcp
+  ingress:
+    - toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

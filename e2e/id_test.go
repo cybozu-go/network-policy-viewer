@@ -21,6 +21,7 @@ func testIdLabel() {
     "l3-ingress-implicit-deny-all",
     "l4-egress-explicit-deny-any",
     "l4-egress-explicit-deny-tcp",
+    "l4-ingress-all-allow-tcp",
     "l4-ingress-explicit-allow-any",
     "l4-ingress-explicit-allow-tcp",
     "l4-ingress-explicit-deny-any",
