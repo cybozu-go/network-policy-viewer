@@ -2,10 +2,8 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,8 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/rand"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 )
 
 func init() {
@@ -36,38 +32,6 @@ var inspectCmd = &cobra.Command{
 	ValidArgsFunction: completePods,
 }
 
-type policyEntryKey struct {
-	Identity  int `json:"Identity"`
-	Direction int `json:"TrafficDirection"`
-	Protocol  int `json:"Nexthdr"`
-	BigPort   int `json:"DestPortNetwork"` // big endian
-}
-
-// For the meanings of the flags, see:
-// https://github.com/cilium/cilium/blob/v1.16.3/bpf/lib/common.h#L394
-type policyEntry struct {
-	Flags   int            `json:"Flags"`
-	Packets int            `json:"Packets"`
-	Bytes   int            `json:"Bytes"`
-	Key     policyEntryKey `json:"Key"`
-}
-
-func (p policyEntry) IsDenyRule() bool {
-	return (p.Flags & 1) > 0
-}
-
-func (p policyEntry) IsEgressRule() bool {
-	return p.Key.Direction > 0
-}
-
-func (p policyEntry) IsWildcardProtocol() bool {
-	return (p.Flags & 2) > 0
-}
-
-func (p policyEntry) IsWildcardPort() bool {
-	return (p.Flags & 4) > 0
-}
-
 // This command aims to show the result of "cilium bpf policy get" from a remote pod.
 // https://github.com/cilium/cilium/blob/v1.16.3/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
@@ -82,37 +46,6 @@ type inspectEntry struct {
 	Port             int    `json:"port"`
 	Bytes            int    `json:"bytes"`
 	Packets          int    `json:"packets"`
-}
-
-func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]policyEntry, error) {
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, namespace, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
-	}
-
-	url, err := getProxyEndpoint(ctx, clientset, namespace, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get proxy endpoint: %w", err)
-	}
-
-	url = fmt.Sprintf("%s/policy/%d", url, endpointID)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to request policy: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	policies := make([]policyEntry, 0)
-	if err = json.Unmarshal(data, &policies); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return policies, nil
 }
 
 func runInspect(ctx context.Context, w io.Writer, name string) error {
@@ -204,7 +137,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		entry.WildcardProtocol = p.IsWildcardProtocol()
 		entry.WildcardPort = p.IsWildcardPort()
 		entry.Protocol = p.Key.Protocol
-		entry.Port = ((p.Key.BigPort & 0xFF) << 8) + ((p.Key.BigPort & 0xFF00) >> 8)
+		entry.Port = p.Key.Port()
 		entry.Bytes = p.Bytes
 		entry.Packets = p.Packets
 		arr[i] = entry

@@ -45,48 +45,6 @@ func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	return clientset, dynamicClient, nil
 }
 
-func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*client.Client, error) {
-	endpoint, err := getProxyEndpoint(ctx, clientset, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if cached, ok := cachedCiliumClients[endpoint]; ok {
-		return cached, nil
-	}
-
-	ciliumClient, err := client.NewClient(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	cachedCiliumClients[endpoint] = ciliumClient
-
-	return ciliumClient, err
-}
-
-func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
-	targetPod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	targetNode := targetPod.Spec.NodeName
-
-	pods, err := c.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + targetNode,
-		LabelSelector: rootOptions.proxySelector,
-	})
-	if err != nil {
-		return "", err
-	}
-	if num := len(pods.Items); num != 1 {
-		err := fmt.Errorf("failed to find cilium-agent-proxy. found %d pods", num)
-		return "", err
-	}
-
-	podIP := pods.Items[0].Status.PodIP
-	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
-}
-
 func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
 	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {

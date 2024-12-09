@@ -31,6 +31,8 @@ func init() {
 	manifestGenerateCmd.Flags().BoolVar(&manifestGenerateOptions.deny, "deny", false, "generate deny rule")
 	manifestGenerateCmd.Flags().StringVar(&manifestGenerateOptions.from, "from", "", "egress pod")
 	manifestGenerateCmd.Flags().StringVar(&manifestGenerateOptions.to, "to", "", "ingress pod")
+	manifestGenerateCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
+	manifestGenerateCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
 	manifestCmd.AddCommand(manifestGenerateCmd)
 }
 
