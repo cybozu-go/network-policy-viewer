@@ -14,5 +14,6 @@
 | l4-ingress-explicit-deny-udp | allow (L4) | deny (L4) |
 | l4-egress-explicit-deny-any | deny (L4) | - |
 | l4-egress-explicit-deny-tcp | deny (L4) | - |
+| l4-ingress-all-allow-tcp | - | allow (L4-only) |
 | 8.8.8.8 (Google Public DNS) | allow (L4) | - |
 | 8.8.4.4 (Google Public DNS)  | deny (L4) | - |

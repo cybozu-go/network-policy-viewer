@@ -80,6 +80,12 @@ Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
+		{
+			Selector: "test=l4-ingress-all-allow-tcp",
+			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
+		},
 	}
 
 	It("should list applied policies", func() {
