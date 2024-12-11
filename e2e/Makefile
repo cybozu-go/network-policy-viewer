@@ -51,7 +51,7 @@ run-test-pod-%:
 .PHONY: install-test-pod
 install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-self
-	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
+	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny-all
 	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny-all
@@ -64,6 +64,11 @@ install-test-pod:
 	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-any
 	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-tcp
 	$(MAKE) --no-print-directory run-test-pod-l4-ingress-all-allow-tcp
+	$(MAKE) --no-print-directory wait-for-workloads
+
+	# Cilium-agents on different nodes may simultaneously create multiple CiliumIdentities for a same set of labels.
+	# To enforce the following test deployment to use a same CiliumIdentity, we first create it with replicas=1 and then upscale.
+	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
 	kubectl apply -f testdata/policy/l3.yaml

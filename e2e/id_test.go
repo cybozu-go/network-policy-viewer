@@ -1,6 +1,9 @@
 package e2e
 
 import (
+	"fmt"
+	"strconv"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -37,10 +40,38 @@ func testIdLabel() {
 }
 
 func testIdSummary() {
-	expected := `{"default":1,"kube-system":2,"local-path-storage":1,"test":12}`
+	cases := []struct {
+		Namespace string
+		Count     int
+	}{
+		{
+			Namespace: "default",
+			Count:     1,
+		},
+		{
+			Namespace: "kube-system",
+			Count:     2,
+		},
+		{
+			Namespace: "local-path-storage",
+			Count:     1,
+		},
+		{
+			Namespace: "test",
+			Count:     13,
+		},
+	}
 	It("should show ID summary", func() {
-		result := runViewerSafe(Default, nil, "id", "summary", "-o=json")
-		result = jqSafe(Default, result, "-c")
-		Expect(string(result)).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", string(result), expected)
+		for _, c := range cases {
+			resultData := runViewerSafe(Default, nil, "id", "summary", "-o=json")
+			resultData = jqSafe(Default, resultData, "-r", fmt.Sprintf(`."%s"`, c.Namespace))
+			result, err := strconv.Atoi(string(resultData))
+			Expect(err).NotTo(HaveOccurred())
+
+			expected := c.Count
+
+			// Multiple CiliumIdentities may be generated for a same set of security-relevant labels
+			Expect(result).To(BeNumerically(">=", expected), "compare failed. namespace: %s\nactual: %d\nexpected: %d", result, expected)
+		}
 	})
 }
