@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -101,6 +102,15 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	response, err := client.Endpoint.GetEndpointID(&params)
 	if err != nil {
 		return fmt.Errorf("failed to get endpoint information: %w", err)
+	}
+	if response.Payload == nil ||
+		response.Payload.Status == nil ||
+		response.Payload.Status.Policy == nil ||
+		response.Payload.Status.Policy.Realized == nil ||
+		response.Payload.Status.Policy.Realized.L4 == nil ||
+		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
+		response.Payload.Status.Policy.Realized.L4.Egress == nil {
+		return errors.New("api response is insufficient")
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
