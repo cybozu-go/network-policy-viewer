@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/rand"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -99,7 +99,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		}
 		entry.Example = "-"
 		if v, ok := idEndpoints[p.Key.Identity]; ok {
-			i := rand.Intn(len(v))
+			i := rand.IntN(len(v))
 			entry.Example = v[i].GetName()
 		} else {
 			idObj := identity.NumericIdentity(p.Key.Identity)
