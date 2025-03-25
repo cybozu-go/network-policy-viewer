@@ -4,7 +4,7 @@ CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
 CILIUM_IMAGE_VERSION := 1.15.13.2
-CILIUM_CLI := $(TOOLS_DIR)/cilium
+CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
 CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 STATICCHECK := $(TOOLS_DIR)/staticcheck
@@ -32,7 +32,7 @@ setup: $(CUSTOMCHECKER) $(STATICCHECK) ## Install necessary tools
 download-cilium-cli:
 	mkdir -p $(TOOLS_DIR)
 	CONTAINER_ID=$$(docker run --rm --detach --entrypoint pause ghcr.io/cybozu/cilium:$(CILIUM_IMAGE_VERSION)); \
-	docker cp $${CONTAINER_ID}:/usr/bin/cilium $(CILIUM_CLI); \
+	docker cp $${CONTAINER_ID}:/usr/bin/cilium-dbg $(CILIUM_DBG_CLI); \
 	docker stop $${CONTAINER_ID}
 
 $(CUSTOMCHECKER):
