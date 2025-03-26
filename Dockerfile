@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM ghcr.io/cybozu/golang:1.23-jammy AS builder
+FROM ghcr.io/cybozu/golang:1.24-noble AS builder
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -16,11 +16,11 @@ COPY Makefile Makefile
 RUN make build-proxy
 
 # Compose the manager container
-FROM ghcr.io/cybozu/ubuntu:22.04
+FROM ghcr.io/cybozu/ubuntu:24.04
 LABEL org.opencontainers.image.source=https://github.com/cybozu-go/network-policy-viewer
 
 WORKDIR /
-COPY bin/download/cilium /
+COPY bin/download/cilium-dbg /
 COPY --from=builder /work/bin/cilium-agent-proxy /
 
 ENTRYPOINT ["/cilium-agent-proxy"]

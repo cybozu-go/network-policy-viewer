@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ciliumPath = "/cilium"
+	ciliumPath = "/cilium-dbg"
 )
 
 func runCommand(path string, input []byte, args ...string) ([]byte, []byte, error) {
