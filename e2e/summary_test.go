@@ -21,6 +21,7 @@ l4-ingress-explicit-allow-any,4,0,0,0
 l4-ingress-explicit-allow-tcp,2,0,0,0
 l4-ingress-explicit-deny-any,1,3,0,0
 l4-ingress-explicit-deny-udp,1,1,0,0
+self,1,0,14,8
 self,1,0,14,8`
 
 	It("should show summary", func() {

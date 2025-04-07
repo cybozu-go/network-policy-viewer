@@ -131,6 +131,7 @@ spec:
 
 func testManifestRange() {
 	expected := `From,test,self
+From,test,self
 To,test,l3-ingress-explicit-allow-all
 To,test,l3-ingress-explicit-allow-all`
 

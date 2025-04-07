@@ -165,7 +165,7 @@ spec:
         k8s:test: l4-ingress-explicit-allow-tcp
     toPorts:
     - ports:
-      - port: "8080"
+      - port: "8000"
         protocol: TCP
   - toEndpoints:
     - matchLabels:
@@ -197,7 +197,7 @@ spec:
         k8s:test: l4-egress-explicit-deny-tcp
     toPorts:
     - ports:
-      - port: "8080"
+      - port: "8000"
         protocol: TCP
   - toCIDR:
     - 8.8.4.4/32

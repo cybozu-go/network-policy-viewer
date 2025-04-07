@@ -23,7 +23,7 @@ Allow,Egress,l3-ingress-implicit-deny-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-any,false,false,6,53
 Allow,Egress,l4-ingress-explicit-allow-any,false,false,17,53
 Allow,Egress,l4-ingress-explicit-allow-any,false,false,132,53
-Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8080
+Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000
 Allow,Egress,l4-ingress-explicit-deny-any,false,false,6,53
 Allow,Egress,l4-ingress-explicit-deny-any,false,false,17,53
 Allow,Egress,l4-ingress-explicit-deny-any,false,false,132,53
@@ -36,7 +36,7 @@ Deny,Egress,l3-egress-explicit-deny-all,true,true,0,0
 Deny,Egress,l4-egress-explicit-deny-any,false,false,6,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
-Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8080`,
+Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 		},
 		{
 			Selector: "test=l3-ingress-explicit-allow-all",
@@ -70,7 +70,7 @@ Allow,Ingress,self,false,false,132,53`,
 		{
 			Selector: "test=l4-ingress-explicit-allow-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,self,false,false,6,8080`,
+Allow,Ingress,self,false,false,6,8000`,
 		},
 		{
 			Selector: "test=l4-ingress-explicit-deny-any",
@@ -94,9 +94,9 @@ Deny,Ingress,self,false,false,17,161`,
 		},
 		{
 			Selector: "test=l4-ingress-all-allow-tcp",
-			Expected: `Allow,Ingress,reserved:host,false,false,6,8080
+			Expected: `Allow,Ingress,reserved:host,false,false,6,8000
 Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,reserved:unknown,false,false,6,8080`,
+Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 	}
 

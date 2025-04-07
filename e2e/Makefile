@@ -78,6 +78,7 @@ install-test-pod:
 
 	# Cilium-agents on different nodes may simultaneously create multiple CiliumIdentities for a same set of labels.
 	# To enforce the following test deployment to use a same CiliumIdentity, we first create it with replicas=1 and then upscale.
+	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-ubuntu-pod-self
 	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
