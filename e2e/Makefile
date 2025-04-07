@@ -41,6 +41,16 @@ start:
 run-test-pod-%:
 	@# https://github.com/orgs/aquaproj/discussions/2964
 	@echo Hello | yq > /dev/null
+	cat testdata/template/testhttpd.yaml | \
+		yq '.metadata.name = "$*"' | \
+		yq '.spec.replicas = $(DEPLOYMENT_REPLICAS)' | \
+		yq '.spec.selector.matchLabels = {"test": "$*"}' | \
+		yq '.spec.template.metadata.labels = {"test": "$*", "group": "test"}' | \
+		kubectl apply -f -
+
+run-ubuntu-pod-%:
+	@# https://github.com/orgs/aquaproj/discussions/2964
+	@echo Hello | yq > /dev/null
 	cat testdata/template/ubuntu.yaml | \
 		yq '.metadata.name = "$*"' | \
 		yq '.spec.replicas = $(DEPLOYMENT_REPLICAS)' | \
@@ -50,7 +60,7 @@ run-test-pod-%:
 
 .PHONY: install-test-pod
 install-test-pod:
-	$(MAKE) --no-print-directory run-test-pod-self
+	$(MAKE) --no-print-directory run-ubuntu-pod-self
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny-all

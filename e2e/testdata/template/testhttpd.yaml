@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: test
+  name: testhttpd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: testhttpd
+  template:
+    metadata:
+      labels:
+        app: testhttpd
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: testhttpd
+          image: ghcr.io/cybozu/testhttpd:0
