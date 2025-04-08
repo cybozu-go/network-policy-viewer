@@ -181,6 +181,7 @@ spec:
       - port: "161"
         protocol: UDP
   - toCIDR:
+    - 1.1.1.1/32
     - 8.8.8.8/32
     toPorts:
     - ports:

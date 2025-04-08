@@ -14,7 +14,10 @@ func testInspect() {
 	}{
 		{
 			Selector: "test=self",
-			Expected: `Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
+			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,6,53
+Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
+Allow,Egress,cidr:1.1.1.1/32,false,false,132,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0

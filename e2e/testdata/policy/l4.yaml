@@ -35,7 +35,8 @@ spec:
             - port: "161" # SNMP (UDP)
               protocol: UDP
     - toCIDR:
-        - 8.8.8.8/32
+        - 1.1.1.1/32 # Cloudflare DNS
+        - 8.8.8.8/32 # Google Public DNS
       toPorts:
         - ports:
             - port: "53"
@@ -54,7 +55,7 @@ spec:
             - port: "8000"
               protocol: TCP
     - toCIDR:
-        - 8.8.4.4/32
+        - 8.8.4.4/32 # Google Public DNS
       toPorts:
         - ports:
             - port: "53"
