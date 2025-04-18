@@ -7,10 +7,10 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -116,20 +116,11 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 					return fmt.Errorf("failed to get identity: %w", err)
 				}
 				if slices.Contains(response.Payload.Labels, "reserved:world") {
-					// If the identity is a world one, its labels contain multiple nesting CIDRs.
-					// For example, 0.0.0.0/0, 0.0.0.0/1, ..., 8.8.8.8/32.
-					// The following code finds the smallest CIDR from the list.
-					slices.SortFunc(response.Payload.Labels, func(a, b string) int {
-						aparts := strings.Split(a, "/")
-						bparts := strings.Split(b, "/")
-						if len(aparts) < 2 || len(bparts) < 2 {
-							return len(bparts) - len(aparts)
-						}
-						abits, _ := strconv.Atoi(aparts[1])
-						bbits, _ := strconv.Atoi(bparts[1])
-						return bbits - abits
-					})
-					entry.Example = response.Payload.Labels[0]
+					lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+					cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
+					if len(cidrModel) == 1 {
+						entry.Example = cidrModel[0]
+					}
 				}
 			}
 		}

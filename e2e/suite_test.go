@@ -33,4 +33,5 @@ func runTest() {
 	Context("manifest-generate", testManifestGenerate)
 	Context("manifest-range", testManifestRange)
 	Context("reach", testReach)
+	Context("traffic", testTraffic)
 }

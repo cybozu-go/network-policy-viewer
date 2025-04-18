@@ -41,6 +41,16 @@ start:
 run-test-pod-%:
 	@# https://github.com/orgs/aquaproj/discussions/2964
 	@echo Hello | yq > /dev/null
+	cat testdata/template/testhttpd.yaml | \
+		yq '.metadata.name = "$*"' | \
+		yq '.spec.replicas = $(DEPLOYMENT_REPLICAS)' | \
+		yq '.spec.selector.matchLabels = {"test": "$*"}' | \
+		yq '.spec.template.metadata.labels = {"test": "$*", "group": "test"}' | \
+		kubectl apply -f -
+
+run-ubuntu-pod-%:
+	@# https://github.com/orgs/aquaproj/discussions/2964
+	@echo Hello | yq > /dev/null
 	cat testdata/template/ubuntu.yaml | \
 		yq '.metadata.name = "$*"' | \
 		yq '.spec.replicas = $(DEPLOYMENT_REPLICAS)' | \
@@ -50,7 +60,7 @@ run-test-pod-%:
 
 .PHONY: install-test-pod
 install-test-pod:
-	$(MAKE) --no-print-directory run-test-pod-self
+	$(MAKE) --no-print-directory run-ubuntu-pod-self
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny-all
 	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny-all
@@ -68,6 +78,7 @@ install-test-pod:
 
 	# Cilium-agents on different nodes may simultaneously create multiple CiliumIdentities for a same set of labels.
 	# To enforce the following test deployment to use a same CiliumIdentity, we first create it with replicas=1 and then upscale.
+	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-ubuntu-pod-self
 	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
