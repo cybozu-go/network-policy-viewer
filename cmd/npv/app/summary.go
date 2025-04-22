@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func init() {
@@ -48,7 +49,7 @@ func runSummary(ctx context.Context, w io.Writer) error {
 	}
 
 	summary := make([]summaryEntry, 0)
-	pods, err := listRelevantPods(ctx, clientset, rootOptions.namespace)
+	pods, err := listRelevantPods(ctx, clientset, rootOptions.namespace, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

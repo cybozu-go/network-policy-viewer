@@ -79,8 +79,8 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return identity, nil
 }
 
-func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string) ([]corev1.Pod, error) {
-	pods, err := c.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
