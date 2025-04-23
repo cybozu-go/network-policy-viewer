@@ -95,13 +95,13 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	if name != "" {
 		pods = []string{name}
 	} else {
-		resources, err := clientset.CoreV1().Pods(rootOptions.namespace).List(ctx, metav1.ListOptions{
+		resources, err := listRelevantPods(ctx, clientset, rootOptions.namespace, metav1.ListOptions{
 			LabelSelector: trafficOptions.selector,
 		})
 		if err != nil {
 			return err
 		}
-		for _, r := range resources.Items {
+		for _, r := range resources {
 			pods = append(pods, r.Name)
 		}
 	}
