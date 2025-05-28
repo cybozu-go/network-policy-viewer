@@ -20,7 +20,7 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	}
 	targetNode := targetPod.Spec.NodeName
 
-	pods, err := c.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
+	pods, err := c.CoreV1().Pods(rootOptions.proxyNamespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + targetNode,
 		LabelSelector: rootOptions.proxySelector,
 	})
