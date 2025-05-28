@@ -45,12 +45,16 @@ func testIdSummary() {
 		Count     int
 	}{
 		{
+			Namespace: "cilium-agent-proxy",
+			Count:     1,
+		},
+		{
 			Namespace: "default",
 			Count:     1,
 		},
 		{
 			Namespace: "kube-system",
-			Count:     2,
+			Count:     1,
 		},
 		{
 			Namespace: "local-path-storage",
