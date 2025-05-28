@@ -16,7 +16,7 @@ COPY Makefile Makefile
 RUN make build-proxy
 
 # Compose the manager container
-FROM ghcr.io/cybozu/ubuntu:24.04
+FROM scratch
 LABEL org.opencontainers.image.source=https://github.com/cybozu-go/network-policy-viewer
 
 WORKDIR /
