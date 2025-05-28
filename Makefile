@@ -38,6 +38,9 @@ download-cilium-cli:
 $(CUSTOMCHECKER):
 	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@latest
 
+.PHONY: staticcheck
+staticcheck: $(STATICCHECK)
+
 $(STATICCHECK):
 	GOBIN=$(TOOLS_DIR) go install honnef.co/go/tools/cmd/staticcheck@latest
 
