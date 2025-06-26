@@ -34,3 +34,20 @@ self,1,0,17,8`
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)
 	})
 }
+
+func testSummaryNode() {
+	It("should show summary per node", func() {
+		data := kubectlSafe(Default, nil, "get", "node", "-o=jsonpath={.items[*].metadata.name}")
+		nodes := strings.Fields(string(data))
+
+		for _, node := range nodes {
+			data := kubectlSafe(Default, nil, "get", "pod", "-n=test", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}")
+			nodePods := strings.Fields(string(data))
+
+			result := runViewerSafe(Default, nil, "summary", "-o=json", "-n=test", "--node="+node)
+			result = jqSafe(Default, result, "-r", ".[].name")
+			summaryPods := strings.Fields(string(result))
+			Expect(nodePods).To(Equal(summaryPods))
+		}
+	})
+}
