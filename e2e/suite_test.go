@@ -30,6 +30,7 @@ func runTest() {
 	Context("id-summary", testIdSummary)
 	Context("inspect", testInspect)
 	Context("summary", testSummary)
+	Context("summary-node", testSummaryNode)
 	Context("manifest-generate", testManifestGenerate)
 	Context("manifest-range", testManifestRange)
 	Context("reach", testReach)

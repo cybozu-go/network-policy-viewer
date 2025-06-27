@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -80,6 +81,16 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 }
 
 func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]corev1.Pod, error) {
+	node := rootOptions.node
+	if node != "" {
+		baseSelector, err := fields.ParseSelector(opts.FieldSelector)
+		if err != nil {
+			return nil, err
+		}
+		nodeSelector := fields.OneTermEqualSelector("spec.nodeName", rootOptions.node)
+		opts.FieldSelector = fields.AndSelectors(baseSelector, nodeSelector).String()
+	}
+
 	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, err

@@ -28,6 +28,26 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (r
 	return
 }
 
+func completeNodes(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
+	ret = make([]string, 0)
+	directive = cobra.ShellCompDirectiveNoFileComp
+
+	clientset, _, err := createK8sClients()
+	if err != nil {
+		return
+	}
+
+	nodes, err := clientset.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	for _, node := range nodes.Items {
+		ret = append(ret, node.Name)
+	}
+	return
+}
+
 func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
 	ret = make([]string, 0)
 	directive = cobra.ShellCompDirectiveNoFileComp
