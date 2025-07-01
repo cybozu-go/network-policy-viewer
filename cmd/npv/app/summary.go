@@ -49,7 +49,7 @@ func runSummary(ctx context.Context, w io.Writer) error {
 	}
 
 	summary := make([]summaryEntry, 0)
-	pods, err := listRelevantPods(ctx, clientset, rootOptions.namespace, metav1.ListOptions{})
+	pods, err := listRelevantPods(ctx, clientset, getRelevantNamespace(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func runSummary(ctx context.Context, w io.Writer) error {
 		entry.Namespace = p.Namespace
 		entry.Name = p.Name
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, p.Name)
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, p.Namespace, p.Name)
 		if err != nil {
 			return err
 		}

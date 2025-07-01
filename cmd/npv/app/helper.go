@@ -80,6 +80,13 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return identity, nil
 }
 
+func getRelevantNamespace() string {
+	if rootOptions.allNamespaces {
+		return ""
+	}
+	return rootOptions.namespace
+}
+
 func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]corev1.Pod, error) {
 	node := rootOptions.node
 	if node != "" {

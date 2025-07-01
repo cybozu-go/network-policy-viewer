@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -82,8 +83,8 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
-	if (name != "") && (trafficOptions.selector != "") {
-		return errors.New("pod name and selector should not be specified at once")
+	if (name != "") && (rootOptions.allNamespaces || trafficOptions.selector != "") {
+		return errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
 	clientset, dynamicClient, err := createK8sClients()
@@ -91,18 +92,23 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	var pods []string
+	pods := make([]*corev1.Pod, 0)
 	if name != "" {
-		pods = []string{name}
+		pod, err := clientset.CoreV1().Pods(rootOptions.namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		pods = append(pods, pod)
 	} else {
-		resources, err := listRelevantPods(ctx, clientset, rootOptions.namespace, metav1.ListOptions{
+		podList, err := listRelevantPods(ctx, clientset, getRelevantNamespace(), metav1.ListOptions{
 			LabelSelector: trafficOptions.selector,
 		})
 		if err != nil {
 			return err
 		}
-		for _, r := range resources {
-			pods = append(pods, r.Name)
+
+		for _, p := range podList {
+			pods = append(pods, &p)
 		}
 	}
 
@@ -117,13 +123,13 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	traffic := make(map[trafficKey]*trafficValue)
-	for _, name := range pods {
-		client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
+	for _, p := range pods {
+		client, err := createCiliumClient(ctx, clientset, p.Namespace, p.Name)
 		if err != nil {
 			return fmt.Errorf("failed to create Cilium client: %w", err)
 		}
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, name)
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, p.Namespace, p.Name)
 		if err != nil {
 			return err
 		}

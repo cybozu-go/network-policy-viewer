@@ -48,7 +48,7 @@ func runIdLabel(ctx context.Context, w io.Writer) error {
 		if !ok {
 			continue
 		}
-		if ns != rootOptions.namespace {
+		if !(rootOptions.allNamespaces || ns == rootOptions.namespace) {
 			continue
 		}
 

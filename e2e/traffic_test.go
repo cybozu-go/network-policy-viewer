@@ -29,6 +29,10 @@ func readTraffic(result string) map[string]int {
 	scanner := bufio.NewScanner(strings.NewReader(result))
 	for scanner.Scan() {
 		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
 		kv := strings.Split(line, ",")
 		Expect(kv).To(HaveLen(2))
 
@@ -95,16 +99,51 @@ Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 		}
 
 		By("checking npv traffic -l shows combined traffic amount")
-		result := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[0])
-		result1 := formatTrafficResult(result, true)
+		{
+			// Run npv traffic for two self pods separately
+			result := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[0])
+			result1 := formatTrafficResult(result, true)
 
-		result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[1])
-		result2 := formatTrafficResult(result, true)
-		amount12 := readTraffic(result1 + "\n" + result2)
+			result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[1])
+			result2 := formatTrafficResult(result, true)
+			amount12 := readTraffic(result1 + "\n" + result2)
 
-		result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", "-l=test=self")
-		result3 := formatTrafficResult(result, true)
-		amount3 := readTraffic(result3)
-		Expect(amount12).To(Equal(amount3))
+			// Run npv traffic for two self pods with a label selector
+			result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", "-l=test=self")
+			result3 := formatTrafficResult(result, true)
+			amount3 := readTraffic(result3)
+
+			// Check
+			Expect(amount12).To(Equal(amount3))
+		}
+
+		By("checking npv traffic --node shows traffic amount per node")
+		{
+			data = kubectlSafe(Default, nil, "get", "node", "-o=jsonpath={.items[*].metadata.name}")
+			nodes := strings.Fields(string(data))
+
+			data = kubectlSafe(Default, nil, "get", "cep", "-A", "-l=test", "-o=jsonpath={.items[*].metadata.name}")
+			ceps := strings.Fields(string(data))
+
+			for _, node := range nodes {
+				// Run npv traffic for each pod on a node separately
+				data = kubectlSafe(Default, nil, "get", "pod", "-A", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}")
+				nodeTestPods := makeIntersection(strings.Fields(string(data)), ceps)
+
+				result := ""
+				for _, p := range nodeTestPods {
+					resultPod := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", p)
+					result = result + "\n" + formatTrafficResult(resultPod, true)
+				}
+				amount := readTraffic(result)
+
+				// Run npv traffic for all the pods on a node
+				result = formatTrafficResult(runViewerSafe(Default, nil, "traffic", "-o=json", "--node="+node, "-l=test"), true)
+				amountOnce := readTraffic(result)
+
+				// Check
+				Expect(amount).To(Equal(amountOnce))
+			}
+		}
 	})
 }

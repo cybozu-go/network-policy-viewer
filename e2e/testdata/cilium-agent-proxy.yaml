@@ -33,6 +33,8 @@ spec:
                 - BPF
               drop:
                 - ALL
+      tolerations:
+        - operator: Exists
       volumes:
         - name: cilium-socket
           hostPath:
