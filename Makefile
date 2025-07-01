@@ -3,7 +3,7 @@ TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
-CILIUM_IMAGE_VERSION := 1.15.13.2
+CILIUM_IMAGE_VERSION := 1.15.18.1
 CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
 CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
