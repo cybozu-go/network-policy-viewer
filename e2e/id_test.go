@@ -37,6 +37,48 @@ func testIdLabel() {
 		result := runViewerSafe(Default, nil, "id", "label", "-n=test", "-o=json")
 		Expect(string(result)).To(Equal(expected))
 	})
+
+	expectedAll := `{
+  "k8s:app": [
+    "local-path-provisioner",
+    "ubuntu"
+  ],
+  "k8s:app.kubernetes.io/name": [
+    "cilium-agent-proxy"
+  ],
+  "k8s:group": [
+    "test"
+  ],
+  "k8s:io.cilium.k8s.policy.serviceaccount": [
+    "coredns",
+    "default",
+    "local-path-provisioner-service-account",
+    "ubuntu"
+  ],
+  "k8s:k8s-app": [
+    "kube-dns"
+  ],
+  "k8s:test": [
+    "l3-egress-explicit-deny-all",
+    "l3-egress-implicit-deny-all",
+    "l3-ingress-explicit-allow-all",
+    "l3-ingress-explicit-deny-all",
+    "l3-ingress-implicit-deny-all",
+    "l4-egress-explicit-deny-any",
+    "l4-egress-explicit-deny-tcp",
+    "l4-ingress-all-allow-tcp",
+    "l4-ingress-explicit-allow-any",
+    "l4-ingress-explicit-allow-tcp",
+    "l4-ingress-explicit-deny-any",
+    "l4-ingress-explicit-deny-udp",
+    "self"
+  ]
+}
+`
+	It("should show Security Identity label cardinality for all namespaces", func() {
+		result := runViewerSafe(Default, nil, "id", "label", "-A", "-o=json")
+		Expect(string(result)).To(Equal(expectedAll))
+	})
 }
 
 func testIdSummary() {

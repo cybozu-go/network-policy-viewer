@@ -67,3 +67,17 @@ func onePodByLabelSelector(g Gomega, namespace, selector string) string {
 	g.Expect(count).To(BeNumerically(">=", 1), "namespace: %s, selector: %s", namespace, selector)
 	return string(jqSafe(g, data, "-r", ".items[0].metadata.name"))
 }
+
+func makeIntersection(x, y []string) []string {
+	ret := make([]string, 0)
+	mx := make(map[string]any)
+	for _, s := range x {
+		mx[s] = true
+	}
+	for _, s := range y {
+		if _, ok := mx[s]; ok {
+			ret = append(ret, s)
+		}
+	}
+	return ret
+}

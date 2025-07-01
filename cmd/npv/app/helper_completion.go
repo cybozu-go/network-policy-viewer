@@ -57,7 +57,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := listRelevantPods(context.Background(), clientset, rootOptions.namespace, metav1.ListOptions{})
+	pods, err := listRelevantPods(context.Background(), clientset, getRelevantNamespace(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

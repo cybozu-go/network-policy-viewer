@@ -35,16 +35,31 @@ self,1,0,17,8`
 	})
 }
 
+func testSummaryAll() {
+	It("should show summary for all namespaces", func() {
+		data := kubectlSafe(Default, nil, "get", "cep", "-A", "-o=jsonpath={.items[*].metadata.name}")
+		ceps := strings.Fields(string(data))
+
+		result := runViewerSafe(Default, nil, "summary", "-A", "-o=json")
+		result = jqSafe(Default, result, "-r", ".[].name")
+		summaryPods := strings.Fields(string(result))
+		Expect(ceps).To(Equal(summaryPods))
+	})
+}
+
 func testSummaryNode() {
 	It("should show summary per node", func() {
 		data := kubectlSafe(Default, nil, "get", "node", "-o=jsonpath={.items[*].metadata.name}")
 		nodes := strings.Fields(string(data))
 
-		for _, node := range nodes {
-			data := kubectlSafe(Default, nil, "get", "pod", "-n=test", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}")
-			nodePods := strings.Fields(string(data))
+		data = kubectlSafe(Default, nil, "get", "cep", "-A", "-o=jsonpath={.items[*].metadata.name}")
+		ceps := strings.Fields(string(data))
 
-			result := runViewerSafe(Default, nil, "summary", "-o=json", "-n=test", "--node="+node)
+		for _, node := range nodes {
+			data = kubectlSafe(Default, nil, "get", "pod", "-A", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}")
+			nodePods := makeIntersection(strings.Fields(string(data)), ceps)
+
+			result := runViewerSafe(Default, nil, "summary", "--node="+node, "-o=json")
 			result = jqSafe(Default, result, "-r", ".[].name")
 			summaryPods := strings.Fields(string(result))
 			Expect(nodePods).To(Equal(summaryPods))
