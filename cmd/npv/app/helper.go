@@ -80,14 +80,33 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return identity, nil
 }
 
-func getRelevantNamespace() string {
+func getSubjectNamespace() string {
 	if rootOptions.allNamespaces {
 		return ""
 	}
 	return rootOptions.namespace
 }
 
-func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]corev1.Pod, error) {
+func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name, selector string) ([]*corev1.Pod, error) {
+	if (name != "") && (rootOptions.allNamespaces || selector != "") {
+		return nil, errors.New("multiple pods should not be selected when pod name is specified")
+	}
+
+	ns := getSubjectNamespace()
+	if name != "" {
+		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return []*corev1.Pod{pod}, nil
+	} else {
+		return listCiliumManagedPods(ctx, clientset, ns, metav1.ListOptions{
+			LabelSelector: selector,
+		})
+	}
+}
+
+func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
 	node := rootOptions.node
 	if node != "" {
 		baseSelector, err := fields.ParseSelector(opts.FieldSelector)
@@ -103,7 +122,7 @@ func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace st
 		return nil, err
 	}
 
-	ret := make([]corev1.Pod, 0)
+	ret := make([]*corev1.Pod, 0)
 	for _, p := range pods.Items {
 		// Skip non-relevant pods
 		if p.Spec.HostNetwork {
@@ -112,7 +131,7 @@ func listRelevantPods(ctx context.Context, c *kubernetes.Clientset, namespace st
 		if p.Status.Phase != corev1.PodRunning {
 			continue
 		}
-		ret = append(ret, p)
+		ret = append(ret, &p)
 	}
 	return ret, nil
 }

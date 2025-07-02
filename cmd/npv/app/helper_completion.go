@@ -57,7 +57,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := listRelevantPods(context.Background(), clientset, getRelevantNamespace(), metav1.ListOptions{})
+	pods, err := listCiliumManagedPods(context.Background(), clientset, getSubjectNamespace(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}
@@ -80,7 +80,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 	li := strings.Split(toComplete, "/")
 	switch len(li) {
 	case 2: // namespace already filled
-		pods, err := listRelevantPods(context.Background(), clientset, li[0], metav1.ListOptions{})
+		pods, err := listCiliumManagedPods(context.Background(), clientset, li[0], metav1.ListOptions{})
 		if err != nil {
 			return
 		}

@@ -99,6 +99,27 @@ Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
 	})
 }
 
+func testListAll() {
+	expected := `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Egress,CiliumNetworkPolicy,test,l3-egress
+Egress,CiliumNetworkPolicy,test,l4-egress
+Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
+Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all
+Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp
+Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-any
+Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-tcp
+Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-any
+Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-udp`
+
+	It("should list applied policies for multiple pods", func() {
+		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test")
+		result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
+		resultString := strings.Replace(string(result), `"`, "", -1)
+		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+	})
+}
+
 func testListManifests() {
 	expected := `apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
