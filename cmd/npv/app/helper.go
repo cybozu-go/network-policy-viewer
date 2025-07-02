@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -184,6 +185,26 @@ func parseNamespacedName(nn string) (types.NamespacedName, error) {
 		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
 	}
 	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
+}
+
+func parseCIDR(repr string) (*net.IPNet, error) {
+	if repr == "" {
+		return nil, nil
+	}
+	_, cidr, err := net.ParseCIDR(repr)
+	return cidr, err
+}
+
+func isChildCIDR(parent, child *net.IPNet) bool {
+	if parent == nil || child == nil {
+		return false
+	}
+	if !parent.Contains(child.IP) {
+		return false
+	}
+	p, _ := parent.Mask.Size()
+	c, _ := child.Mask.Size()
+	return p <= c
 }
 
 func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {

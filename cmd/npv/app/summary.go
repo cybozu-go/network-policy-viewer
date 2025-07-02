@@ -54,12 +54,12 @@ func runSummary(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	for _, p := range pods {
+	for _, pod := range pods {
 		var entry summaryEntry
-		entry.Namespace = p.Namespace
-		entry.Name = p.Name
+		entry.Namespace = pod.Namespace
+		entry.Name = pod.Name
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, p.Namespace, p.Name)
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
 		if err != nil {
 			return err
 		}

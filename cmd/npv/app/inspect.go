@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
@@ -16,7 +18,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+var inspectOptions struct {
+	withCIDR string
+}
+
 func init() {
+	inspectCmd.Flags().StringVar(&inspectOptions.withCIDR, "with-cidr", "", "show rules for CIDR")
 	rootCmd.AddCommand(inspectCmd)
 }
 
@@ -49,6 +56,11 @@ type inspectEntry struct {
 }
 
 func runInspect(ctx context.Context, w io.Writer, name string) error {
+	withCIDR, err := parseCIDR(inspectOptions.withCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse --with-cidr: %w", err)
+	}
+
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
@@ -74,8 +86,8 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	arr := make([]inspectEntry, len(policies))
-	for i, p := range policies {
+	arr := make([]inspectEntry, 0)
+	for _, p := range policies {
 		var entry inspectEntry
 		if p.IsDenyRule() {
 			entry.Policy = policyDeny
@@ -124,6 +136,21 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 				}
 			}
 		}
+
+		if withCIDR != nil {
+			if !strings.Contains(entry.Example, "cidr:") {
+				continue
+			}
+			policyCIDR := strings.Split(entry.Example, ":")[1]
+			_, cidr, err := net.ParseCIDR(policyCIDR)
+			if err != nil {
+				return err
+			}
+			if !isChildCIDR(withCIDR, cidr) {
+				continue
+			}
+		}
+
 		entry.Identity = p.Key.Identity
 		entry.WildcardProtocol = p.IsWildcardProtocol()
 		entry.WildcardPort = p.IsWildcardPort()
@@ -131,7 +158,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		entry.Port = p.Key.Port()
 		entry.Bytes = p.Bytes
 		entry.Packets = p.Packets
-		arr[i] = entry
+		arr = append(arr, entry)
 	}
 
 	// I don't know it is safe to sort the result of "cilium bpf policy get", so let's keep the original order.

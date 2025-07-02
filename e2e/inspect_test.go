@@ -9,8 +9,9 @@ import (
 
 func testInspect() {
 	cases := []struct {
-		Selector string
-		Expected string
+		Selector  string
+		ExtraArgs []string
+		Expected  string
 	}{
 		{
 			Selector: "test=self",
@@ -40,6 +41,13 @@ Deny,Egress,l4-egress-explicit-deny-any,false,false,6,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
 Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--with-cidr=8.8.8.0/24"},
+			Expected: `Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		{
 			Selector: "test=l3-ingress-explicit-allow-all",
@@ -106,7 +114,8 @@ Allow,Ingress,reserved:unknown,false,false,6,8000`,
 	It("should inspect policy configuration", func() {
 		for _, c := range cases {
 			podName := onePodByLabelSelector(Default, "test", c.Selector)
-			result := runViewerSafe(Default, nil, "inspect", "-o=json", "-n=test", podName)
+			args := append([]string{"inspect", "-o=json", "-n=test", podName}, c.ExtraArgs...)
+			result := runViewerSafe(Default, nil, args...)
 			// remove hash suffix from pod names
 			result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | split("-") | .[0:5] | join("-"))]`)
 			result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | if startswith("self") then "self" else . end)]`)
@@ -114,7 +123,7 @@ Allow,Ingress,reserved:unknown,false,false,6,8000`,
 			result = jqSafe(Default, result, "-r", `sort_by(.policy, .direction, .example, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
 			result = jqSafe(Default, result, "-r", `.[] | [.policy, .direction, .example, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 			resultString := strings.Replace(string(result), `"`, "", -1)
-			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
+			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nargs: %v\nactual: %s\nexpected: %s", c.Selector, c.ExtraArgs, resultString, c.Expected)
 		}
 	})
 }

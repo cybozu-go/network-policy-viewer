@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net"
 	"slices"
 	"sort"
 	"strconv"
@@ -20,10 +21,12 @@ import (
 
 var trafficOptions struct {
 	selector string
+	withCIDR string
 }
 
 func init() {
 	trafficCmd.Flags().StringVarP(&trafficOptions.selector, "selector", "l", "", "specify label constraints")
+	trafficCmd.Flags().StringVar(&trafficOptions.withCIDR, "with-cidr", "", "show rules for CIDR")
 	rootCmd.AddCommand(trafficCmd)
 }
 
@@ -80,6 +83,11 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
+	withCIDR, err := parseCIDR(trafficOptions.withCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse --with-cidr: %w", err)
+	}
+
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
@@ -165,6 +173,19 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 							example = cidrModel[0]
 						}
 					}
+				}
+			}
+
+			if withCIDR != nil {
+				if k.CIDR == "" {
+					continue
+				}
+				_, cidr, err := net.ParseCIDR(k.CIDR)
+				if err != nil {
+					return err
+				}
+				if !isChildCIDR(withCIDR, cidr) {
+					continue
 				}
 			}
 
