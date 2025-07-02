@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
@@ -81,7 +80,8 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
-	if err := parseWithCIDROptions(); err != nil {
+	filter, err := parseCIDROptions("with", &commonOptions.with)
+	if err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 		if err != nil {
 			return err
 		}
-		if policies, err = filterPolicyMap(ctx, client, policies, commonOptions.withCIDRFilter); err != nil {
+		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
 			return err
 		}
 
@@ -153,14 +153,9 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 				if idObj.IsReservedIdentity() {
 					example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					// If the identity is in the local scope, it is only valid on the reporting node.
-					params := policy.GetIdentityIDParams{
-						Context: ctx,
-						ID:      strconv.FormatInt(int64(p.Key.Identity), 10),
-					}
-					response, err := client.Policy.GetIdentityID(&params)
+					response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
 					if err != nil {
-						return fmt.Errorf("failed to get identity: %w", err)
+						return err
 					}
 					if slices.Contains(response.Payload.Labels, "reserved:world") {
 						lbls := labels.NewLabelsFromModel(response.Payload.Labels)

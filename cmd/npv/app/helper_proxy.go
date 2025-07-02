@@ -22,6 +22,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var (
+	cachedCiliumClients map[string]*client.Client
+	cachedLocalIdentity map[*client.Client]map[int]*policy.GetIdentityIDOK
+)
+
+func init() {
+	cachedCiliumClients = make(map[string]*client.Client)
+	cachedLocalIdentity = make(map[*client.Client]map[int]*policy.GetIdentityIDOK)
+}
+
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
 	targetPod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -62,6 +72,28 @@ func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, na
 	cachedCiliumClients[endpoint] = ciliumClient
 
 	return ciliumClient, err
+}
+
+func queryLocalIdentity(ctx context.Context, client *client.Client, id int) (*policy.GetIdentityIDOK, error) {
+	if _, ok := cachedLocalIdentity[client]; !ok {
+		cachedLocalIdentity[client] = make(map[int]*policy.GetIdentityIDOK)
+	}
+	if _, ok := cachedLocalIdentity[client][id]; !ok {
+		// If the identity is in the local scope, it is only valid on the reporting node.
+		params := policy.GetIdentityIDParams{
+			Context: ctx,
+			ID:      strconv.FormatInt(int64(id), 10),
+		}
+		response, err := client.Policy.GetIdentityID(&params)
+		switch err {
+		case nil:
+			cachedLocalIdentity[client][id] = response
+		default:
+			err = fmt.Errorf("failed to get identity: %w", err)
+		}
+		return response, err
+	}
+	return cachedLocalIdentity[client][id], nil
 }
 
 type policyEntryKey struct {
@@ -137,6 +169,24 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 
 type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
 
+func makeIdentityFilter(ingress, egress bool, id int) policyFilter {
+	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
+			return false, nil
+		}
+		if p.Key.Identity == 0 {
+			return true, nil
+		}
+
+		// This filter is looking for a global identity
+		idObj := identity.NumericIdentity(p.Key.Identity)
+		if idObj.HasLocalScope() {
+			return false, nil
+		}
+		return (p.Key.Identity == 0) || (p.Key.Identity == id), nil
+	}
+}
+
 func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
 	incl = ip.RemoveCIDRs(incl, excl)
 
@@ -155,13 +205,9 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		params := policy.GetIdentityIDParams{
-			Context: ctx,
-			ID:      strconv.FormatInt(int64(p.Key.Identity), 10),
-		}
-		response, err := client.Policy.GetIdentityID(&params)
+		response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
 		if err != nil {
-			return false, fmt.Errorf("failed to get identity: %w", err)
+			return false, err
 		}
 		if !slices.Contains(response.Payload.Labels, "reserved:world") {
 			return false, nil
