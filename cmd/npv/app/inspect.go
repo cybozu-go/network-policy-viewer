@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
-	"net"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
@@ -56,9 +54,13 @@ type inspectEntry struct {
 }
 
 func runInspect(ctx context.Context, w io.Writer, name string) error {
-	withCIDR, err := parseCIDR(inspectOptions.withCIDR)
-	if err != nil {
-		return fmt.Errorf("failed to parse --with-cidr: %w", err)
+	var filter policyFilter
+	if inspectOptions.withCIDR != "" {
+		cidr, err := parseCIDR(inspectOptions.withCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to parse --with-cidr: %w", err)
+		}
+		filter = makeCIDRFilter(true, true, cidr)
 	}
 
 	clientset, dynamicClient, err := createK8sClients()
@@ -73,6 +75,9 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 
 	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
+		return err
+	}
+	if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
 		return err
 	}
 
@@ -134,20 +139,6 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 						entry.Example = cidrModel[0]
 					}
 				}
-			}
-		}
-
-		if withCIDR != nil {
-			if !strings.Contains(entry.Example, "cidr:") {
-				continue
-			}
-			policyCIDR := strings.Split(entry.Example, ":")[1]
-			_, cidr, err := net.ParseCIDR(policyCIDR)
-			if err != nil {
-				return err
-			}
-			if !isChildCIDR(withCIDR, cidr) {
-				continue
 			}
 		}
 
