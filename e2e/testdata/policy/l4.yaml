@@ -2,11 +2,18 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   namespace: test
-  name: l4-egress
+  name: l4-self
 spec:
   endpointSelector:
     matchLabels:
       k8s:test: self
+  ingressDeny:
+    - fromCIDR:
+        - 192.168.100.0/24
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
   egress:
     - toEndpoints:
         - matchLabels:

@@ -17,6 +17,7 @@ import (
 )
 
 func init() {
+	addWithCIDROptions(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)
 }
 
@@ -49,6 +50,10 @@ type inspectEntry struct {
 }
 
 func runInspect(ctx context.Context, w io.Writer, name string) error {
+	if err := parseWithCIDROptions(); err != nil {
+		return err
+	}
+
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
@@ -61,6 +66,9 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 
 	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
+		return err
+	}
+	if policies, err = filterPolicyMap(ctx, client, policies, commonOptions.withCIDRFilter); err != nil {
 		return err
 	}
 

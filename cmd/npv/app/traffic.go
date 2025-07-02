@@ -24,6 +24,7 @@ var trafficOptions struct {
 
 func init() {
 	trafficCmd.Flags().StringVarP(&trafficOptions.selector, "selector", "l", "", "specify label constraints")
+	addWithCIDROptions(trafficCmd)
 	rootCmd.AddCommand(trafficCmd)
 }
 
@@ -80,6 +81,10 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
+	if err := parseWithCIDROptions(); err != nil {
+		return err
+	}
+
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
@@ -109,6 +114,9 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 
 		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, p.Namespace, p.Name)
 		if err != nil {
+			return err
+		}
+		if policies, err = filterPolicyMap(ctx, client, policies, commonOptions.withCIDRFilter); err != nil {
 			return err
 		}
 
