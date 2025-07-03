@@ -3,21 +3,28 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"strconv"
 
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var reachOptions struct {
-	from string
-	to   string
+	from     string
+	fromCIDR string
+	to       string
+	toCIDR   string
 }
 
 func init() {
 	reachCmd.Flags().StringVar(&reachOptions.from, "from", "", "egress pod")
+	reachCmd.Flags().StringVar(&reachOptions.fromCIDR, "from-cidr", "", "egress CIDR")
 	reachCmd.Flags().StringVar(&reachOptions.to, "to", "", "ingress pod")
+	reachCmd.Flags().StringVar(&reachOptions.toCIDR, "to-cidr", "", "ingress CIDR")
 	reachCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
 	reachCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
 	rootCmd.AddCommand(reachCmd)
@@ -49,18 +56,48 @@ type reachEntry struct {
 }
 
 func runReach(ctx context.Context, w io.Writer) error {
-	if reachOptions.from == "" || reachOptions.to == "" {
-		return errors.New("--from and --to options are required")
+	var from, to *types.NamespacedName
+	var fromCIDR, toCIDR *net.IPNet
+	if reachOptions.from != "" {
+		f, err := parseNamespacedName(reachOptions.from)
+		if err != nil {
+			return errors.New("--from should be specified as NAMESPACE/POD")
+		}
+		from = &f
+	}
+	if reachOptions.to != "" {
+		t, err := parseNamespacedName(reachOptions.to)
+		if err != nil {
+			return errors.New("--to should be specified as NAMESPACE/POD")
+		}
+		to = &t
+	}
+	if reachOptions.fromCIDR != "" {
+		cidr, err := parseCIDR(reachOptions.fromCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to parse --from-cidr: %w", err)
+		}
+		fromCIDR = cidr
+	}
+	if reachOptions.toCIDR != "" {
+		cidr, err := parseCIDR(reachOptions.toCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to parse --to-cidr: %w", err)
+		}
+		toCIDR = cidr
 	}
 
-	from, err := parseNamespacedName(reachOptions.from)
-	if err != nil {
-		return errors.New("--from and --to should be specified as NAMESPACE/POD")
+	if from == nil && to == nil {
+		// For example, npv reach --from-cidr [CIDR] --to-cidr [CIDR] is non-sense
+		// because both sides are not Cilium-managed and thus it can print nothing.
+		// To obtain a meaningful result, one of --from or --to must be specified.
+		return errors.New("one of --from or --to must be specified")
 	}
-
-	to, err := parseNamespacedName(reachOptions.to)
-	if err != nil {
-		return errors.New("--from and --to should be specified as NAMESPACE/POD")
+	if from != nil && fromCIDR != nil {
+		return errors.New("one of --from or --from-cidr can be specified")
+	}
+	if to != nil && toCIDR != nil {
+		return errors.New("one of --to or --to-cidr can be specified")
 	}
 
 	clientset, dynamicClient, err := createK8sClients()
@@ -68,76 +105,104 @@ func runReach(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	fromIdentity, err := getPodIdentity(ctx, dynamicClient, from.Namespace, from.Name)
-	if err != nil {
-		return err
-	}
-
-	toIdentity, err := getPodIdentity(ctx, dynamicClient, to.Namespace, to.Name)
-	if err != nil {
-		return err
-	}
-
-	fromPolicies, err := queryPolicyMap(ctx, clientset, dynamicClient, from.Namespace, from.Name)
-	if err != nil {
-		return err
-	}
-
-	toPolicies, err := queryPolicyMap(ctx, clientset, dynamicClient, to.Namespace, to.Name)
-	if err != nil {
-		return err
-	}
-
 	arr := make([]reachEntry, 0)
-	for _, p := range fromPolicies {
-		if (p.Key.Identity != 0) && (p.Key.Identity != int(toIdentity)) {
-			continue
+
+	// process from-egress
+	if from != nil {
+		var filter policyFilter
+
+		switch {
+		case to != nil:
+			identity, err := getPodIdentity(ctx, dynamicClient, to.Namespace, to.Name)
+			if err != nil {
+				return err
+			}
+			filter = makeIdentityFilter(false, true, int(identity))
+		case toCIDR != nil:
+			filter = makeCIDRFilter(false, true, toCIDR)
+		default:
+			return errors.New("one of --to or --to-cidr must be specified")
 		}
-		if !p.IsEgressRule() {
-			continue
+
+		client, err := createCiliumClient(ctx, clientset, from.Namespace, from.Name)
+		if err != nil {
+			return err
 		}
-		var entry reachEntry
-		entry.Namespace = from.Namespace
-		entry.Name = from.Name
-		entry.Direction = directionEgress
-		if p.IsDenyRule() {
-			entry.Policy = policyDeny
-		} else {
-			entry.Policy = policyAllow
+
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, from.Namespace, from.Name)
+		if err != nil {
+			return err
 		}
-		entry.Identity = p.Key.Identity
-		entry.WildcardProtocol = p.IsWildcardProtocol()
-		entry.WildcardPort = p.IsWildcardPort()
-		entry.Protocol = p.Key.Protocol
-		entry.Port = p.Key.Port()
-		entry.Bytes = p.Bytes
-		entry.Packets = p.Packets
-		arr = append(arr, entry)
+		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
+			return err
+		}
+
+		for _, p := range policies {
+			var entry reachEntry
+			entry.Namespace = from.Namespace
+			entry.Name = from.Name
+			entry.Direction = directionEgress
+			if p.IsDenyRule() {
+				entry.Policy = policyDeny
+			} else {
+				entry.Policy = policyAllow
+			}
+			entry.Identity = p.Key.Identity
+			entry.WildcardProtocol = p.IsWildcardProtocol()
+			entry.WildcardPort = p.IsWildcardPort()
+			entry.Protocol = p.Key.Protocol
+			entry.Port = p.Key.Port()
+			entry.Bytes = p.Bytes
+			entry.Packets = p.Packets
+			arr = append(arr, entry)
+		}
 	}
-	for _, p := range toPolicies {
-		if (p.Key.Identity != 0) && (p.Key.Identity != int(fromIdentity)) {
-			continue
+	// process to-ingress
+	if to != nil {
+		var filter policyFilter
+
+		switch {
+		case from != nil:
+			identity, err := getPodIdentity(ctx, dynamicClient, from.Namespace, from.Name)
+			if err != nil {
+				return err
+			}
+			filter = makeIdentityFilter(true, false, int(identity))
+		case fromCIDR != nil:
+			filter = makeCIDRFilter(true, false, fromCIDR)
+		default:
+			return errors.New("one of --from or --from-cidr must be specified")
 		}
-		if p.IsEgressRule() {
-			continue
+
+		client, err := createCiliumClient(ctx, clientset, to.Namespace, to.Name)
+		if err != nil {
+			return err
 		}
-		var entry reachEntry
-		entry.Namespace = to.Namespace
-		entry.Name = to.Name
-		entry.Direction = directionIngress
-		if p.IsDenyRule() {
-			entry.Policy = policyDeny
-		} else {
-			entry.Policy = policyAllow
+
+		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, to.Namespace, to.Name)
+		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
+			return err
 		}
-		entry.Identity = p.Key.Identity
-		entry.WildcardProtocol = p.IsWildcardProtocol()
-		entry.WildcardPort = p.IsWildcardPort()
-		entry.Protocol = p.Key.Protocol
-		entry.Port = p.Key.Port()
-		entry.Bytes = p.Bytes
-		entry.Packets = p.Packets
-		arr = append(arr, entry)
+
+		for _, p := range policies {
+			var entry reachEntry
+			entry.Namespace = to.Namespace
+			entry.Name = to.Name
+			entry.Direction = directionIngress
+			if p.IsDenyRule() {
+				entry.Policy = policyDeny
+			} else {
+				entry.Policy = policyAllow
+			}
+			entry.Identity = p.Key.Identity
+			entry.WildcardProtocol = p.IsWildcardProtocol()
+			entry.WildcardPort = p.IsWildcardPort()
+			entry.Protocol = p.Key.Protocol
+			entry.Port = p.Key.Port()
+			entry.Bytes = p.Bytes
+			entry.Packets = p.Packets
+			arr = append(arr, entry)
+		}
 	}
 
 	header := []string{"NAMESPACE", "NAME", "DIRECTION", "POLICY", "IDENTITY", "PROTOCOL", "PORT", "BYTES", "PACKETS"}

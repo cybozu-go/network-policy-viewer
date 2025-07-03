@@ -136,10 +136,31 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 
 type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
 
+func makeIdentityFilter(ingress, egress bool, id int) policyFilter {
+	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
+			return false, nil
+		}
+		if p.Key.Identity == 0 {
+			return true, nil
+		}
+
+		// This filter is looking for a global identity
+		idObj := identity.NumericIdentity(p.Key.Identity)
+		if idObj.HasLocalScope() {
+			return false, nil
+		}
+		return (p.Key.Identity == 0) || (p.Key.Identity == id), nil
+	}
+}
+
 func makeCIDRFilter(ingress, egress bool, cidr *net.IPNet) policyFilter {
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
 		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
 			return false, nil
+		}
+		if p.Key.Identity == 0 {
+			return true, nil
 		}
 
 		// If the Identity is not locally-scoped, it is not representing a CIDR
