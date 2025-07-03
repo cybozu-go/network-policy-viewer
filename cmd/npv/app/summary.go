@@ -49,7 +49,7 @@ func runSummary(ctx context.Context, w io.Writer) error {
 	}
 
 	summary := make([]summaryEntry, 0)
-	pods, err := listRelevantPods(ctx, clientset, getRelevantNamespace(), metav1.ListOptions{})
+	pods, err := listCiliumManagedPods(ctx, clientset, getSubjectNamespace(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

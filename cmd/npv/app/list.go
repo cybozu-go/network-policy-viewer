@@ -20,10 +20,12 @@ import (
 )
 
 var listOptions struct {
+	selector  string
 	manifests bool
 }
 
 func init() {
+	listCmd.Flags().StringVarP(&listOptions.selector, "selector", "l", "", "specify label constraints")
 	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
 	rootCmd.AddCommand(listCmd)
 }
@@ -33,9 +35,13 @@ var listCmd = &cobra.Command{
 	Short: "list network policies applied to a pod",
 	Long:  `List network policies applied to a pod`,
 
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runList(context.Background(), cmd.OutOrStdout(), args[0])
+		if len(args) == 0 {
+			return runList(context.Background(), cmd.OutOrStdout(), "")
+		} else {
+			return runList(context.Background(), cmd.OutOrStdout(), args[0])
+		}
 	},
 	ValidArgsFunction: completePods,
 }
@@ -85,50 +91,56 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
+	pods, err := selectSubjectPods(ctx, clientset, name, listOptions.selector)
 	if err != nil {
-		return fmt.Errorf("failed to create Cilium client: %w", err)
-	}
-
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
-	if err != nil {
-		return fmt.Errorf("failed to get pod endpoint ID: %w", err)
-	}
-
-	params := endpoint.GetEndpointIDParams{
-		Context: ctx,
-		ID:      strconv.FormatInt(endpointID, 10),
-	}
-	response, err := client.Endpoint.GetEndpointID(&params)
-	if err != nil {
-		return fmt.Errorf("failed to get endpoint information: %w", err)
-	}
-	if response.Payload == nil ||
-		response.Payload.Status == nil ||
-		response.Payload.Status.Policy == nil ||
-		response.Payload.Status.Policy.Realized == nil ||
-		response.Payload.Status.Policy.Realized.L4 == nil ||
-		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
-		response.Payload.Status.Policy.Realized.L4.Egress == nil {
-		return errors.New("api response is insufficient")
+		return err
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
 	policySet := make(map[derivedFromEntry]struct{})
-
-	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
-	for _, rule := range ingressRules {
-		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(r, directionIngress)
-			policySet[entry] = struct{}{}
+	for _, pod := range pods {
+		client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+		if err != nil {
+			return fmt.Errorf("failed to create Cilium client: %w", err)
 		}
-	}
 
-	egressRules := response.Payload.Status.Policy.Realized.L4.Egress
-	for _, rule := range egressRules {
-		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(r, directionEgress)
-			policySet[entry] = struct{}{}
+		endpointID, err := getPodEndpointID(ctx, dynamicClient, pod.Namespace, pod.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get pod endpoint ID: %w", err)
+		}
+
+		params := endpoint.GetEndpointIDParams{
+			Context: ctx,
+			ID:      strconv.FormatInt(endpointID, 10),
+		}
+		response, err := client.Endpoint.GetEndpointID(&params)
+		if err != nil {
+			return fmt.Errorf("failed to get endpoint information: %w", err)
+		}
+		if response.Payload == nil ||
+			response.Payload.Status == nil ||
+			response.Payload.Status.Policy == nil ||
+			response.Payload.Status.Policy.Realized == nil ||
+			response.Payload.Status.Policy.Realized.L4 == nil ||
+			response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
+			response.Payload.Status.Policy.Realized.L4.Egress == nil {
+			return errors.New("api response is insufficient")
+		}
+
+		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
+		for _, rule := range ingressRules {
+			for _, r := range rule.DerivedFromRules {
+				entry := parseDerivedFromEntry(r, directionIngress)
+				policySet[entry] = struct{}{}
+			}
+		}
+
+		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
+		for _, rule := range egressRules {
+			for _, r := range rule.DerivedFromRules {
+				entry := parseDerivedFromEntry(r, directionEgress)
+				policySet[entry] = struct{}{}
+			}
 		}
 	}
 

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -16,8 +15,6 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -83,33 +80,14 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
-	if (name != "") && (rootOptions.allNamespaces || trafficOptions.selector != "") {
-		return errors.New("multiple pods should not be selected when pod name is specified")
-	}
-
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
 	}
 
-	pods := make([]*corev1.Pod, 0)
-	if name != "" {
-		pod, err := clientset.CoreV1().Pods(rootOptions.namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		pods = append(pods, pod)
-	} else {
-		podList, err := listRelevantPods(ctx, clientset, getRelevantNamespace(), metav1.ListOptions{
-			LabelSelector: trafficOptions.selector,
-		})
-		if err != nil {
-			return err
-		}
-
-		for _, p := range podList {
-			pods = append(pods, &p)
-		}
+	pods, err := selectSubjectPods(ctx, clientset, name, trafficOptions.selector)
+	if err != nil {
+		return err
 	}
 
 	ids, err := getIdentityResourceMap(ctx, dynamicClient)
