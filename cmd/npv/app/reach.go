@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 
@@ -45,7 +46,7 @@ type reachEntry struct {
 	Protocol         int    `json:"protocol"`
 	Port             int    `json:"port"`
 	Bytes            int    `json:"bytes"`
-	Packets          int    `json:"packets"`
+	Requests         int    `json:"requests"`
 }
 
 func runReach(ctx context.Context, w io.Writer) error {
@@ -111,7 +112,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 		entry.Protocol = p.Key.Protocol
 		entry.Port = p.Key.Port()
 		entry.Bytes = p.Bytes
-		entry.Packets = p.Packets
+		entry.Requests = p.Packets
 		arr = append(arr, entry)
 	}
 	for _, p := range toPolicies {
@@ -136,11 +137,11 @@ func runReach(ctx context.Context, w io.Writer) error {
 		entry.Protocol = p.Key.Protocol
 		entry.Port = p.Key.Port()
 		entry.Bytes = p.Bytes
-		entry.Packets = p.Packets
+		entry.Requests = p.Packets
 		arr = append(arr, entry)
 	}
 
-	header := []string{"NAMESPACE", "NAME", "DIRECTION", "POLICY", "IDENTITY", "PROTOCOL", "PORT", "BYTES", "PACKETS"}
+	header := []string{"NAMESPACE", "NAME", "DIRECTION", "POLICY", "IDENTITY", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -154,6 +155,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 		} else {
 			port = strconv.Itoa(p.Port)
 		}
-		return []any{p.Namespace, p.Name, p.Direction, p.Policy, p.Identity, protocol, port, p.Bytes, p.Packets}
+		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
+		return []any{p.Namespace, p.Name, p.Direction, p.Policy, p.Identity, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

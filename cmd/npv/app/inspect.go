@@ -45,7 +45,7 @@ type inspectEntry struct {
 	Protocol         int    `json:"protocol"`
 	Port             int    `json:"port"`
 	Bytes            int    `json:"bytes"`
-	Packets          int    `json:"packets"`
+	Requests         int    `json:"requests"`
 }
 
 func runInspect(ctx context.Context, w io.Writer, name string) error {
@@ -130,12 +130,12 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		entry.Protocol = p.Key.Protocol
 		entry.Port = p.Key.Port()
 		entry.Bytes = p.Bytes
-		entry.Packets = p.Packets
+		entry.Requests = p.Packets
 		arr[i] = entry
 	}
 
 	// I don't know it is safe to sort the result of "cilium bpf policy get", so let's keep the original order.
-	header := []string{"POLICY", "DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "PACKETS"}
+	header := []string{"POLICY", "DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -149,6 +149,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		} else {
 			port = strconv.Itoa(p.Port)
 		}
-		return []any{p.Policy, p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, p.Bytes, p.Packets}
+		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
+		return []any{p.Policy, p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

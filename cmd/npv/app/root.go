@@ -22,6 +22,7 @@ var rootOptions struct {
 	proxyPort      uint16
 	output         string
 	noHeaders      bool
+	units          bool
 }
 
 func init() {
@@ -33,6 +34,7 @@ func init() {
 	rootCmd.PersistentFlags().Uint16Var(&rootOptions.proxyPort, "proxy-port", 8080, "port number of the proxy endpoints")
 	rootCmd.PersistentFlags().StringVarP(&rootOptions.output, "output", "o", OutputSimple, "output format")
 	rootCmd.PersistentFlags().BoolVar(&rootOptions.noHeaders, "no-headers", false, "stop printing header")
+	rootCmd.PersistentFlags().BoolVarP(&rootOptions.units, "units", "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
 	rootCmd.RegisterFlagCompletionFunc("node", completeNodes)
 }
