@@ -25,6 +25,14 @@ var rootOptions struct {
 	units          bool
 }
 
+var commonOptions struct {
+	withCIDR         string
+	withPrivateCIDRs bool
+	withPublicCIDRs  bool
+
+	withCIDRFilter policyFilter
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&rootOptions.namespace, "namespace", "n", "default", "namespace of pods")
 	rootCmd.PersistentFlags().BoolVarP(&rootOptions.allNamespaces, "all-namespaces", "A", false, "show pods across all namespaces")
@@ -37,6 +45,41 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rootOptions.units, "units", "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
 	rootCmd.RegisterFlagCompletionFunc("node", completeNodes)
+}
+
+func addWithCIDROptions(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&commonOptions.withCIDR, "with-cidr", "", "show rules for CIDR")
+	cmd.Flags().BoolVar(&commonOptions.withPrivateCIDRs, "with-private-cidrs", false, "show rules for private CIDRs")
+	cmd.Flags().BoolVar(&commonOptions.withPublicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs")
+}
+
+func parseWithCIDROptions() error {
+	count := 0
+	expr := ""
+	if commonOptions.withCIDR != "" {
+		count += 1
+		expr = commonOptions.withCIDR
+	}
+	if commonOptions.withPrivateCIDRs {
+		count += 1
+		expr = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	}
+	if commonOptions.withPublicCIDRs {
+		count += 1
+		expr = "0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16"
+	}
+	switch count {
+	case 0:
+	case 1:
+		incl, excl, err := parseCIDRFlag(expr)
+		if err != nil {
+			return fmt.Errorf("failed to parse --with-cidr: %w", err)
+		}
+		commonOptions.withCIDRFilter = makeCIDRFilter(true, true, incl, excl)
+	default:
+		return errors.New("one of --with-cidr, --with-private-cidrs, --with-public-cidrs can be specified")
+	}
+	return nil
 }
 
 var rootCmd = &cobra.Command{

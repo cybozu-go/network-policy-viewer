@@ -3,11 +3,19 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"slices"
+	"strconv"
+	"strings"
 
+	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/client"
+	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -79,6 +87,10 @@ func (p policyEntry) IsDenyRule() bool {
 	return (p.Flags & 1) > 0
 }
 
+func (p policyEntry) IsIngressRule() bool {
+	return !p.IsEgressRule()
+}
+
 func (p policyEntry) IsEgressRule() bool {
 	return p.Key.Direction > 0
 }
@@ -119,5 +131,82 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
+	return policies, nil
+}
+
+type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
+
+func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
+	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
+			return false, nil
+		}
+		if p.Key.Identity == 0 {
+			return true, nil
+		}
+
+		// If the identity is not locally-scoped, it is not representing a CIDR
+		idObj := identity.NumericIdentity(p.Key.Identity)
+		if !idObj.HasLocalScope() {
+			return false, nil
+		}
+
+		// Retrieve identity information
+		params := policy.GetIdentityIDParams{
+			Context: ctx,
+			ID:      strconv.FormatInt(int64(p.Key.Identity), 10),
+		}
+		response, err := client.Policy.GetIdentityID(&params)
+		if err != nil {
+			return false, fmt.Errorf("failed to get identity: %w", err)
+		}
+		if !slices.Contains(response.Payload.Labels, "reserved:world") {
+			return false, nil
+		}
+
+		// Compute leaf CIDR of the identity
+		lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
+		if len(cidrModel) != 1 {
+			return false, errors.New("internal error")
+		}
+		_, idCIDR, err := net.ParseCIDR(strings.Split(cidrModel[0], ":")[1])
+		if err != nil {
+			return false, err
+		}
+
+		// Check
+		for _, cidr := range excl {
+			if isChildCIDR(cidr, idCIDR) {
+				return false, nil
+			}
+		}
+		for _, cidr := range incl {
+			if isChildCIDR(cidr, idCIDR) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
+func filterPolicyMap(ctx context.Context, client *client.Client, policies []policyEntry, pred policyFilter) ([]policyEntry, error) {
+	if pred == nil {
+		return policies, nil
+	}
+
+	// If any error is observed, cancel the remaining work and returns the error
+	var err error
+	policies = slices.DeleteFunc(policies, func(p policyEntry) bool {
+		if err != nil {
+			return false
+		}
+		var ok bool
+		ok, err = pred(ctx, client, &p)
+		return !ok
+	})
+	if err != nil {
+		return nil, err
+	}
 	return policies, nil
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -184,6 +185,50 @@ func parseNamespacedName(nn string) (types.NamespacedName, error) {
 		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
 	}
 	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
+}
+
+func parseCIDRFlag(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {
+	incl = make([]*net.IPNet, 0)
+	excl = make([]*net.IPNet, 0)
+	if expr == "" {
+		return
+	}
+
+	fields := strings.Split(expr, ",")
+	for _, f := range fields {
+		not := false
+		if f[0] == '!' {
+			not = true
+			f = f[1:]
+		}
+
+		var cidr *net.IPNet
+		if _, cidr, err = net.ParseCIDR(f); err != nil {
+			return
+		}
+		if not {
+			excl = append(excl, cidr)
+		} else {
+			incl = append(incl, cidr)
+		}
+	}
+
+	if len(incl) == 0 {
+		err = errors.New("at least one inclusive CIDR rule should be specified")
+	}
+	return
+}
+
+func isChildCIDR(parent, child *net.IPNet) bool {
+	if parent == nil || child == nil {
+		return false
+	}
+	if !parent.Contains(child.IP) {
+		return false
+	}
+	p, _ := parent.Mask.Size()
+	c, _ := child.Mask.Size()
+	return p <= c
 }
 
 func formatWithUnits(v int) string {
