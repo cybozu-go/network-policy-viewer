@@ -186,6 +186,28 @@ func parseNamespacedName(nn string) (types.NamespacedName, error) {
 	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
 }
 
+func formatWithUnits(v int) string {
+	if v < 1024 || !rootOptions.units {
+		return strconv.Itoa(v)
+	}
+
+	units := "_KMGTPEZY"
+	i := 0
+	fv := float64(v)
+	for fv >= 1024 {
+		i += 1
+		fv /= 1024
+	}
+	return fmt.Sprintf("%.1f%c", fv, units[i])
+}
+
+func computeAverage(bytes, count int) float64 {
+	if count == 0 {
+		return 0
+	}
+	return float64(bytes) / float64(count)
+}
+
 func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {
 	switch rootOptions.output {
 	case OutputJson:

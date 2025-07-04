@@ -55,9 +55,9 @@ type trafficKey struct {
 }
 
 type trafficValue struct {
-	Example string `json:"example"`
-	Bytes   int    `json:"bytes"`
-	Packets int    `json:"packets"`
+	Example  string `json:"example"`
+	Bytes    int    `json:"bytes"`
+	Requests int    `json:"requests"`
 }
 
 type trafficEntry struct {
@@ -175,12 +175,12 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 
 			if _, ok := traffic[k]; ok {
 				traffic[k].Bytes += p.Bytes
-				traffic[k].Packets += p.Packets
+				traffic[k].Requests += p.Packets
 			} else {
 				traffic[k] = &trafficValue{
-					Example: example,
-					Bytes:   p.Bytes,
-					Packets: p.Packets,
+					Example:  example,
+					Bytes:    p.Bytes,
+					Requests: p.Packets,
 				}
 			}
 		}
@@ -192,7 +192,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	}
 	sort.Slice(arr, func(i, j int) bool { return lessTrafficEntry(&arr[i], &arr[j]) })
 
-	header := []string{"DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "PACKETS"}
+	header := []string{"DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -206,6 +206,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 		} else {
 			port = strconv.Itoa(p.Port)
 		}
-		return []any{p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, p.Bytes, p.Packets}
+		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
+		return []any{p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }
