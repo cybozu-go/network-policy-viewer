@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -137,6 +138,8 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
 
 func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
+	incl = ip.RemoveCIDRs(incl, excl)
+
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
 		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
 			return false, nil
@@ -176,13 +179,8 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Check
-		for _, cidr := range excl {
-			if isChildCIDR(cidr, idCIDR) {
-				return false, nil
-			}
-		}
 		for _, cidr := range incl {
-			if isChildCIDR(cidr, idCIDR) {
+			if isChildCIDR(cidr, idCIDR) || isChildCIDR(idCIDR, cidr) {
 				return true, nil
 			}
 		}

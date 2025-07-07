@@ -63,6 +63,21 @@ Deny,Egress,cidr:8.8.4.4/32,false,false,132,53`,
 		},
 		{
 			Selector:  "test=self",
+			ExtraArgs: []string{"--with-cidr=10.100.0.0/12,!10.100.0.0/16"},
+			Expected:  ``,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--with-cidr=10.100.0.0/12,!10.100.0.0/20"},
+			Expected:  `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0`,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--with-cidr=10.100.0.0/16,!10.100.0.0/16"},
+			Expected:  ``,
+		},
+		{
+			Selector:  "test=self",
 			ExtraArgs: []string{"--with-private-cidrs"},
 			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
 Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080`,
