@@ -61,41 +61,46 @@ func testTraffic() {
 		}
 
 		cases := []struct {
-			Selector string
+			Args     []string
 			Expected string
 		}{
 			{
-				Selector: l3PodName,
+				Args:     []string{l3PodName},
 				Expected: `Ingress,,self,true,true,0,0`,
 			},
 			{
-				Selector: l4PodName,
+				Args:     []string{l4PodName},
 				Expected: `Ingress,,self,false,false,6,8000`,
 			},
 			{
-				Selector: selfNames[0],
+				Args: []string{selfNames[0]},
 				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
 Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
 Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53`,
 			},
 			{
-				Selector: selfNames[1],
+				Args: []string{selfNames[1]},
 				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
 Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
 Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			},
 			{
-				Selector: "-l=test=self",
+				Args: []string{"-l=test=self"},
 				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
 Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
 Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53
 Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			},
+			{
+				Args:     []string{"-l=test=self", "--with-cidrs=8.0.0.0/8"},
+				Expected: `Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+			},
 		}
 		for _, c := range cases {
-			result := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", c.Selector)
+			args := append([]string{"traffic", "-o=json", "-n=test"}, c.Args...)
+			result := runViewerSafe(Default, nil, args...)
 			resultString := formatTrafficResult(result, false)
-			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
+			Expect(resultString).To(Equal(c.Expected), "compare failed. args: %v\nactual: %s\nexpected: %s", c.Args, resultString, c.Expected)
 		}
 
 		By("checking npv traffic -l shows combined traffic amount")

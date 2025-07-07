@@ -15,9 +15,11 @@ func testList() {
 		{
 			Selector: "test=self",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Egress,CiliumNetworkPolicy,test,l3-egress
-Egress,CiliumNetworkPolicy,test,l4-egress
-Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
+Egress,CiliumNetworkPolicy,test,l3-self
+Egress,CiliumNetworkPolicy,test,l4-self
+Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumNetworkPolicy,test,l3-self
+Ingress,CiliumNetworkPolicy,test,l4-self`,
 		},
 		{
 			Selector: "test=l3-ingress-explicit-allow-all",
@@ -101,16 +103,18 @@ Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
 
 func testListAll() {
 	expected := `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Egress,CiliumNetworkPolicy,test,l3-egress
-Egress,CiliumNetworkPolicy,test,l4-egress
+Egress,CiliumNetworkPolicy,test,l3-self
+Egress,CiliumNetworkPolicy,test,l4-self
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
 Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all
+Ingress,CiliumNetworkPolicy,test,l3-self
 Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp
 Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-any
 Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-tcp
 Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-any
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-udp`
+Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-udp
+Ingress,CiliumNetworkPolicy,test,l4-self`
 
 	It("should list applied policies for multiple pods", func() {
 		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test")
@@ -143,7 +147,7 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   annotations: {}
-  name: l3-egress
+  name: l3-self
   namespace: test
 spec:
   egress:
@@ -166,12 +170,15 @@ spec:
   endpointSelector:
     matchLabels:
       k8s:test: self
+  ingress:
+  - fromCIDR:
+    - 10.100.0.0/16
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   annotations: {}
-  name: l4-egress
+  name: l4-self
   namespace: test
 spec:
   egress:
@@ -228,7 +235,14 @@ spec:
       - port: "53"
   endpointSelector:
     matchLabels:
-      k8s:test: self`
+      k8s:test: self
+  ingressDeny:
+  - fromCIDR:
+    - 192.168.100.0/24
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP`
 
 	It("should list applied policy manifests", func() {
 		podName := onePodByLabelSelector(Default, "test", "test=self")
