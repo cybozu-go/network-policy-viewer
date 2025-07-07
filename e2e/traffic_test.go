@@ -92,7 +92,7 @@ Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53
 Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			},
 			{
-				Args:     []string{"-l=test=self", "--with-cidr=8.0.0.0/8"},
+				Args:     []string{"-l=test=self", "--with-cidrs=8.0.0.0/8"},
 				Expected: `Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			},
 		}
