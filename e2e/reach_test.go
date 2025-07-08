@@ -101,9 +101,11 @@ Sender,Egress,Deny,l4-egress-explicit-deny-any,false,false,132,53`,
 }
 
 func testReachCIDR() {
-	expectedIngress := `Receiver,Ingress,Allow,cidr:10.100.0.0/16,true,true,0,0
+	expectedIngressPrivate := `Receiver,Ingress,Allow,cidr:10.100.0.0/16,true,true,0,0
 Receiver,Ingress,Deny,cidr:192.168.100.0/24,false,false,6,8080`
-	expectedEgress := `Sender,Egress,Allow,cidr:1.1.1.1/32,false,false,6,53
+	expectedIngressPublic := ""
+	expectedEgressPrivate := ""
+	expectedEgressPublic := `Sender,Egress,Allow,cidr:1.1.1.1/32,false,false,6,53
 Sender,Egress,Allow,cidr:1.1.1.1/32,false,false,17,53
 Sender,Egress,Allow,cidr:1.1.1.1/32,false,false,132,53
 Sender,Egress,Allow,cidr:8.8.8.8/32,false,false,6,53
@@ -119,13 +121,19 @@ Sender,Egress,Deny,cidr:8.8.4.4/32,false,false,132,53`
 
 		result := runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
 		resultString := formatReachResult(result)
-		Expect(resultString).To(Equal(expectedIngress), "compare failed. actual: %s\nexpected: %s", resultString, expectedIngress)
+		Expect(resultString).To(Equal(expectedIngressPrivate), "compare failed. actual: %s\nexpected: %s", resultString, expectedIngressPrivate)
 
 		// Retry with sugar syntax
 		fromOption = "--from-private-cidrs"
 		result = runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
 		resultString = formatReachResult(result)
-		Expect(resultString).To(Equal(expectedIngress), "compare failed. actual: %s\nexpected: %s", resultString, expectedIngress)
+		Expect(resultString).To(Equal(expectedIngressPrivate), "compare failed. actual: %s\nexpected: %s", resultString, expectedIngressPrivate)
+
+		// Another test
+		fromOption = "--from-public-cidrs"
+		result = runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
+		resultString = formatReachResult(result)
+		Expect(resultString).To(Equal(expectedIngressPublic), "compare failed. actual: %s\nexpected: %s", resultString, expectedIngressPublic)
 	})
 
 	It("should list egress traffic policy using --to-cidrs", func() {
@@ -134,12 +142,18 @@ Sender,Egress,Deny,cidr:8.8.4.4/32,false,false,132,53`
 
 		result := runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
 		resultString := formatReachResult(result)
-		Expect(resultString).To(Equal(expectedEgress), "compare failed. actual: %s\nexpected: %s", resultString, expectedEgress)
+		Expect(resultString).To(Equal(expectedEgressPublic), "compare failed. actual: %s\nexpected: %s", resultString, expectedEgressPublic)
 
 		// Retry with sugar syntax
 		toOption = "--to-public-cidrs"
 		result = runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
 		resultString = formatReachResult(result)
-		Expect(resultString).To(Equal(expectedEgress), "compare failed. actual: %s\nexpected: %s", resultString, expectedEgress)
+		Expect(resultString).To(Equal(expectedEgressPublic), "compare failed. actual: %s\nexpected: %s", resultString, expectedEgressPublic)
+
+		// Another test
+		toOption = "--to-private-cidrs"
+		result = runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
+		resultString = formatReachResult(result)
+		Expect(resultString).To(Equal(expectedEgressPrivate), "compare failed. actual: %s\nexpected: %s", resultString, expectedEgressPrivate)
 	})
 }

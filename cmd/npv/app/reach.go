@@ -117,7 +117,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			}
 			filter = makeIdentityFilter(false, true, int(identity))
 		case reachOptions.toCIDR.isSet():
-			filter, err = parseCIDROptions("to", &reachOptions.toCIDR)
+			filter, err = parseCIDROptions(false, true, "to", &reachOptions.toCIDR)
 			if err != nil {
 				return err
 			}
@@ -201,7 +201,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			}
 			filter = makeIdentityFilter(true, false, int(identity))
 		case reachOptions.fromCIDR.isSet():
-			filter, err = parseCIDROptions("from", &reachOptions.fromCIDR)
+			filter, err = parseCIDROptions(true, false, "from", &reachOptions.fromCIDR)
 			if err != nil {
 				return err
 			}

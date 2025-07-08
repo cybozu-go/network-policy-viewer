@@ -80,7 +80,7 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
-	filter, err := parseCIDROptions("with", &commonOptions.with)
+	filter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {
 		return err
 	}
