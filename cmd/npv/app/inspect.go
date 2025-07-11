@@ -138,7 +138,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	// I don't know it is safe to sort the result of "cilium bpf policy get", so let's keep the original order.
-	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
+	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -153,6 +153,6 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 			port = strconv.Itoa(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		return []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

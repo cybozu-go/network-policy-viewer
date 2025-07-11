@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -247,6 +248,33 @@ func computeAverage(bytes, count int) float64 {
 }
 
 func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {
+	expr := make([][]any, 0)
+	for i := range count {
+		expr = append(expr, values(i))
+	}
+
+	if rootOptions.output == OutputSimple {
+		header = slices.Clone(header)
+		for j := 0; j < len(header); j++ {
+			h := header[j]
+			if strings.HasSuffix(h, ":") {
+				header[j] = h[:len(h)-1]
+				width := len(h)
+				for i := 0; i < count; i++ {
+					v := fmt.Sprintf("%v", expr[i][j])
+					width = max(width, len(v))
+					expr[i][j] = v
+				}
+
+				format := fmt.Sprintf("%%%ds", width)
+				header[j] = fmt.Sprintf(format, header[j])
+				for i := 0; i < count; i++ {
+					expr[i][j] = fmt.Sprintf(format, expr[i][j])
+				}
+			}
+		}
+	}
+
 	switch rootOptions.output {
 	case OutputJson:
 		text, err := json.MarshalIndent(content, "", "  ")
@@ -268,7 +296,7 @@ func writeSimpleOrJson(w io.Writer, content any, header []string, count int, val
 		}
 		for i := range count {
 			format := strings.Repeat("%v\t", len(header)-1) + "%v\n"
-			if _, err := tw.Write([]byte(fmt.Sprintf(format, values(i)...))); err != nil {
+			if _, err := tw.Write([]byte(fmt.Sprintf(format, expr[i]...))); err != nil {
 				return err
 			}
 		}
