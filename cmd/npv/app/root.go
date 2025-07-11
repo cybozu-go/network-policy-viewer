@@ -55,8 +55,8 @@ func init() {
 
 func addWithCIDROptions(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&commonOptions.with.cidrs, "with-cidrs", "", "show rules for CIDRs")
-	cmd.Flags().BoolVar(&commonOptions.with.privateCIDRs, "with-private-cidrs", false, "show rules for private CIDRs")
-	cmd.Flags().BoolVar(&commonOptions.with.publicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs")
+	cmd.Flags().BoolVar(&commonOptions.with.privateCIDRs, "with-private-cidrs", false, "show rules for private CIDRs (10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)")
+	cmd.Flags().BoolVar(&commonOptions.with.publicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
 }
 
 func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (policyFilter, error) {

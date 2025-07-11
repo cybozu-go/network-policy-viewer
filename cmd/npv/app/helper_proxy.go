@@ -83,10 +83,10 @@ func queryLocalIdentity(ctx context.Context, client *client.Client, id int) (*po
 		switch err {
 		case nil:
 			cachedLocalIdentity[client][id] = response
-			return response, nil
 		default:
-			return nil, fmt.Errorf("failed to get identity: %w", err)
+			err = fmt.Errorf("failed to get identity: %w", err)
 		}
+		return response, err
 	}
 	return cachedLocalIdentity[client][id], nil
 }
