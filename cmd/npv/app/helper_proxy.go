@@ -23,14 +23,9 @@ import (
 )
 
 var (
-	cachedCiliumClients map[string]*client.Client
-	cachedLocalIdentity map[*client.Client]map[int]*policy.GetIdentityIDOK
-)
-
-func init() {
 	cachedCiliumClients = make(map[string]*client.Client)
 	cachedLocalIdentity = make(map[*client.Client]map[int]*policy.GetIdentityIDOK)
-}
+)
 
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
 	targetPod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -88,10 +83,10 @@ func queryLocalIdentity(ctx context.Context, client *client.Client, id int) (*po
 		switch err {
 		case nil:
 			cachedLocalIdentity[client][id] = response
+			return response, nil
 		default:
-			err = fmt.Errorf("failed to get identity: %w", err)
+			return nil, fmt.Errorf("failed to get identity: %w", err)
 		}
-		return response, err
 	}
 	return cachedLocalIdentity[client][id], nil
 }
