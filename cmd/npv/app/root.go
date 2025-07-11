@@ -25,12 +25,18 @@ var rootOptions struct {
 	units          bool
 }
 
-var commonOptions struct {
-	withCIDR         string
-	withPrivateCIDRs bool
-	withPublicCIDRs  bool
+type cidrOptions struct {
+	cidrs        string
+	privateCIDRs bool
+	publicCIDRs  bool
+}
 
-	withCIDRFilter policyFilter
+func (c cidrOptions) isSet() bool {
+	return c.cidrs != "" || c.privateCIDRs || c.publicCIDRs
+}
+
+var commonOptions struct {
+	with cidrOptions
 }
 
 func init() {
@@ -48,38 +54,38 @@ func init() {
 }
 
 func addWithCIDROptions(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&commonOptions.withCIDR, "with-cidrs", "", "show rules for CIDRs")
-	cmd.Flags().BoolVar(&commonOptions.withPrivateCIDRs, "with-private-cidrs", false, "show rules for private CIDRs")
-	cmd.Flags().BoolVar(&commonOptions.withPublicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs")
+	cmd.Flags().StringVar(&commonOptions.with.cidrs, "with-cidrs", "", "show rules for CIDRs")
+	cmd.Flags().BoolVar(&commonOptions.with.privateCIDRs, "with-private-cidrs", false, "show rules for private CIDRs (10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)")
+	cmd.Flags().BoolVar(&commonOptions.with.publicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
 }
 
-func parseWithCIDROptions() error {
+func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (policyFilter, error) {
 	count := 0
 	expr := ""
-	if commonOptions.withCIDR != "" {
+	if opts.cidrs != "" {
 		count += 1
-		expr = commonOptions.withCIDR
+		expr = opts.cidrs
 	}
-	if commonOptions.withPrivateCIDRs {
+	if opts.privateCIDRs {
 		count += 1
 		expr = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	}
-	if commonOptions.withPublicCIDRs {
+	if opts.publicCIDRs {
 		count += 1
 		expr = "0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16"
 	}
 	switch count {
 	case 0:
+		return nil, nil
 	case 1:
 		incl, excl, err := parseCIDRFlag(expr)
 		if err != nil {
-			return fmt.Errorf("failed to parse --with-cidrs: %w", err)
+			return nil, fmt.Errorf("failed to parse --%s-cidrs: %w", prefix, err)
 		}
-		commonOptions.withCIDRFilter = makeCIDRFilter(true, true, incl, excl)
+		return makeCIDRFilter(ingress, egress, incl, excl), nil
 	default:
-		return errors.New("one of --with-cidrs, --with-private-cidrs, --with-public-cidrs can be specified")
+		return nil, fmt.Errorf("one of --%s-cidrs, --%s-private-cidrs, --%s-public-cidrs can be specified", prefix, prefix, prefix)
 	}
-	return nil
 }
 
 var rootCmd = &cobra.Command{

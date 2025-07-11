@@ -11,7 +11,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/cilium/cilium/pkg/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -21,12 +20,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
-
-var cachedCiliumClients map[string]*client.Client
-
-func init() {
-	cachedCiliumClients = make(map[string]*client.Client)
-}
 
 func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	config, err := ctrl.GetConfig()
