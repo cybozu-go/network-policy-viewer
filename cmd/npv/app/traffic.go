@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
@@ -56,7 +55,7 @@ type trafficKey struct {
 }
 
 type trafficValue struct {
-	Example  string `json:"example"`
+	Example  string `json:"example_endpoint"`
 	Bytes    int    `json:"bytes"`
 	Requests int    `json:"requests"`
 }
@@ -81,7 +80,8 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 }
 
 func runTraffic(ctx context.Context, w io.Writer, name string) error {
-	if err := parseWithCIDROptions(); err != nil {
+	filter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
+	if err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 		if err != nil {
 			return err
 		}
-		if policies, err = filterPolicyMap(ctx, client, policies, commonOptions.withCIDRFilter); err != nil {
+		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
 			return err
 		}
 
@@ -153,14 +153,9 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 				if idObj.IsReservedIdentity() {
 					example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					// If the identity is in the local scope, it is only valid on the reporting node.
-					params := policy.GetIdentityIDParams{
-						Context: ctx,
-						ID:      strconv.FormatInt(int64(p.Key.Identity), 10),
-					}
-					response, err := client.Policy.GetIdentityID(&params)
+					response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
 					if err != nil {
-						return fmt.Errorf("failed to get identity: %w", err)
+						return err
 					}
 					if slices.Contains(response.Payload.Labels, "reserved:world") {
 						lbls := labels.NewLabelsFromModel(response.Payload.Labels)
@@ -200,7 +195,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	}
 	sort.Slice(arr, func(i, j int) bool { return lessTrafficEntry(&arr[i], &arr[j]) })
 
-	header := []string{"DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
+	header := []string{"DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -215,6 +210,6 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 			port = strconv.Itoa(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		return []any{p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

@@ -8,6 +8,9 @@ const (
 
 	policyAllow = "Allow"
 	policyDeny  = "Deny"
+
+	trafficRoleSender   = "Sender"
+	trafficRoleReceiver = "Receiver"
 )
 
 var gvrEndpoint schema.GroupVersionResource = schema.GroupVersionResource{

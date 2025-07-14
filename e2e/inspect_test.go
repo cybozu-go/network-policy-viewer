@@ -163,11 +163,11 @@ Allow,Ingress,reserved:unknown,false,false,6,8000`,
 			args := append([]string{"inspect", "-o=json", "-n=test", podName}, c.ExtraArgs...)
 			result := runViewerSafe(Default, nil, args...)
 			// remove hash suffix from pod names
-			result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | split("-") | .[0:5] | join("-"))]`)
-			result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | if startswith("self") then "self" else . end)]`)
+			result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | split("-") | .[0:5] | join("-"))]`)
+			result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | if startswith("self") then "self" else . end)]`)
 			// "npv inspect" returns a unstable result, so we need to sort it in test
-			result = jqSafe(Default, result, "-r", `sort_by(.policy, .direction, .example, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
-			result = jqSafe(Default, result, "-r", `.[] | [.policy, .direction, .example, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
+			result = jqSafe(Default, result, "-r", `sort_by(.policy, .direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
+			result = jqSafe(Default, result, "-r", `.[] | [.policy, .direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 			resultString := strings.Replace(string(result), `"`, "", -1)
 			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nargs: %v\nactual: %s\nexpected: %s", c.Selector, c.ExtraArgs, resultString, c.Expected)
 		}
