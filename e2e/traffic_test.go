@@ -12,13 +12,13 @@ import (
 
 func formatTrafficResult(result []byte, amount bool) string {
 	// remove hash suffix from pod names
-	result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | split("-") | .[0:5] | join("-"))]`)
-	result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | if startswith("self") then "self" else . end)]`)
-	result = jqSafe(Default, result, "-r", `sort_by(.direction, .cidr, .example, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
+	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | split("-") | .[0:5] | join("-"))]`)
+	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | if startswith("self") then "self" else . end)]`)
+	result = jqSafe(Default, result, "-r", `sort_by(.direction, .cidr, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
 	if amount {
-		result = jqSafe(Default, result, "-r", `.[] | [.example, .bytes] | @csv`)
+		result = jqSafe(Default, result, "-r", `.[] | [.example_endpoint, .bytes] | @csv`)
 	} else {
-		result = jqSafe(Default, result, "-r", `.[] | [.direction, .cidr, .example, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
+		result = jqSafe(Default, result, "-r", `.[] | [.direction, .cidr, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 	}
 	return strings.Replace(string(result), `"`, "", -1)
 }

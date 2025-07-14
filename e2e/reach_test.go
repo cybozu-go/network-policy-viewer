@@ -9,11 +9,11 @@ import (
 
 func formatReachResult(result []byte) string {
 	// remove hash suffix from pod names
-	result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | split("-") | .[0:5] | join("-"))]`)
-	result = jqSafe(Default, result, "-r", `[.[] | .example = (.example | if startswith("self") then "self" else . end)]`)
+	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | split("-") | .[0:5] | join("-"))]`)
+	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | if startswith("self") then "self" else . end)]`)
 	// "npv reach" returns a unstable result, so we need to sort it in test
-	result = jqSafe(Default, result, "-r", `sort_by(.role, .direction, .policy, .example, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
-	result = jqSafe(Default, result, "-r", `.[] | [.role, .direction, .policy, .example, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
+	result = jqSafe(Default, result, "-r", `sort_by(.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
+	result = jqSafe(Default, result, "-r", `.[] | [.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 	return strings.Replace(string(result), `"`, "", -1)
 }
 

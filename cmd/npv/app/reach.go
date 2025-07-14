@@ -55,7 +55,7 @@ type reachEntry struct {
 	Policy           string `json:"policy"`
 	Identity         int    `json:"identity"`
 	Namespace        string `json:"namespace"`
-	Example          string `json:"example"`
+	Example          string `json:"example_endpoint"`
 	WildcardProtocol bool   `json:"wildcard_protocol"`
 	WildcardPort     bool   `json:"wildcard_port"`
 	Protocol         int    `json:"protocol"`
@@ -274,7 +274,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 		}
 	}
 
-	header := []string{"ROLE", "DIRECTION", "POLICY", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
+	header := []string{"ROLE", "DIRECTION", "POLICY", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -289,6 +289,6 @@ func runReach(ctx context.Context, w io.Writer) error {
 			port = strconv.Itoa(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Role, p.Direction, p.Policy, p.Identity, p.Namespace, p.Example, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

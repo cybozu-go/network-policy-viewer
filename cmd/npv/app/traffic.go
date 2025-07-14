@@ -55,7 +55,7 @@ type trafficKey struct {
 }
 
 type trafficValue struct {
-	Example  string `json:"example"`
+	Example  string `json:"example_endpoint"`
 	Bytes    int    `json:"bytes"`
 	Requests int    `json:"requests"`
 }
@@ -195,7 +195,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	}
 	sort.Slice(arr, func(i, j int) bool { return lessTrafficEntry(&arr[i], &arr[j]) })
 
-	header := []string{"DIRECTION", "IDENTITY", "NAMESPACE", "EXAMPLE", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
+	header := []string{"DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "BYTES", "REQUESTS", "AVERAGE"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
@@ -210,6 +210,6 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 			port = strconv.Itoa(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Direction, p.Identity, p.Namespace, p.Example, protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		return []any{p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }
