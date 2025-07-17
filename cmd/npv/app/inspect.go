@@ -15,7 +15,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+var inspectOptions struct {
+	ingress bool
+	egress  bool
+	allowed bool
+	denied  bool
+	used    bool
+	unused  bool
+}
+
 func init() {
+	inspectCmd.Flags().BoolVar(&inspectOptions.ingress, "ingress", false, "show ingress-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.egress, "egress", false, "show egress-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
 	addWithCIDROptions(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)
 }
@@ -48,11 +63,33 @@ type inspectEntry struct {
 	Requests         int    `json:"requests"`
 }
 
+func parseInspectOptions() {
+	if !inspectOptions.ingress && !inspectOptions.egress {
+		inspectOptions.ingress = true
+		inspectOptions.egress = true
+	}
+	if !inspectOptions.allowed && !inspectOptions.denied {
+		inspectOptions.allowed = true
+		inspectOptions.denied = true
+	}
+	if !inspectOptions.used && !inspectOptions.unused {
+		inspectOptions.used = true
+		inspectOptions.unused = true
+	}
+}
+
 func runInspect(ctx context.Context, w io.Writer, name string) error {
-	filter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
+	parseInspectOptions()
+	basicFilter := makeBasicFilter(
+		inspectOptions.ingress, inspectOptions.egress,
+		inspectOptions.allowed, inspectOptions.denied,
+		inspectOptions.used, inspectOptions.unused,
+	)
+	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {
 		return err
 	}
+	filter := makeAllFilter(basicFilter, withFilter)
 
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {

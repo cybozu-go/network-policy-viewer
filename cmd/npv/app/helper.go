@@ -258,7 +258,8 @@ func writeSimpleOrJson(w io.Writer, content any, header []string, count int, val
 		for j := 0; j < len(header); j++ {
 			h := header[j]
 			if strings.HasSuffix(h, ":") {
-				header[j] = h[:len(h)-1]
+				h = h[:len(h)-1]
+				header[j] = h
 				width := len(h)
 				for i := 0; i < count; i++ {
 					v := fmt.Sprintf("%v", expr[i][j])

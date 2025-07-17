@@ -111,6 +111,10 @@ type policyEntry struct {
 	Key     policyEntryKey `json:"Key"`
 }
 
+func (p policyEntry) IsAllowRule() bool {
+	return !p.IsDenyRule()
+}
+
 func (p policyEntry) IsDenyRule() bool {
 	return (p.Flags & 1) > 0
 }
@@ -163,6 +167,35 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 }
 
 type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
+
+func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policyFilter {
+	if ingress && egress && allowed && denied && used && unused {
+		// no filter
+		return nil
+	}
+	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+		ret := true
+		switch {
+		case p.IsIngressRule():
+			ret = ret && ingress
+		case p.IsEgressRule():
+			ret = ret && egress
+		}
+		switch {
+		case p.IsAllowRule():
+			ret = ret && allowed
+		case p.IsDenyRule():
+			ret = ret && denied
+		}
+		switch {
+		case p.Bytes > 0:
+			ret = ret && used
+		case p.Bytes == 0:
+			ret = ret && unused
+		}
+		return ret, nil
+	}
+}
 
 func makeIdentityFilter(ingress, egress bool, id int) policyFilter {
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
@@ -226,6 +259,32 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 			}
 		}
 		return false, nil
+	}
+}
+
+func makeAllFilter(filters ...policyFilter) policyFilter {
+	// Please make sure to put a basic filter first for faster computation
+	arr := make([]policyFilter, 0)
+	for _, f := range filters {
+		if f != nil {
+			arr = append(arr, f)
+		}
+	}
+	switch len(arr) {
+	case 0:
+		return nil
+	case 1:
+		return arr[0]
+	default:
+		return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+			for _, f := range arr {
+				result, err := f(ctx, client, p)
+				if !result || err != nil {
+					return result, err
+				}
+			}
+			return true, nil
+		}
 	}
 }
 

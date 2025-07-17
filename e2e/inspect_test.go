@@ -96,6 +96,34 @@ Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
 Deny,Egress,cidr:8.8.4.4/32,false,false,132,53`,
 		},
 		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--allowed", "--ingress"},
+			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--denied", "--egress"},
+			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,132,53
+Deny,Egress,l3-egress-explicit-deny-all,true,true,0,0
+Deny,Egress,l4-egress-explicit-deny-any,false,false,6,53
+Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
+Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
+Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
+		},
+		{
+			Selector:  "test=l4-ingress-explicit-allow-tcp",
+			ExtraArgs: []string{"--used"},
+			Expected:  `Allow,Ingress,self,false,false,6,8000`,
+		},
+		{
+			Selector:  "test=l4-ingress-explicit-deny-udp",
+			ExtraArgs: []string{"--denied", "--unused"},
+			Expected:  `Deny,Ingress,self,false,false,17,161`,
+		},
+		{
 			Selector: "test=l3-ingress-explicit-allow-all",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
 Allow,Ingress,self,true,true,0,0`,
