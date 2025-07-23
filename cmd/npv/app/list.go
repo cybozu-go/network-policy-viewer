@@ -12,10 +12,12 @@ import (
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 )
 
@@ -38,9 +40,9 @@ var listCmd = &cobra.Command{
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			return runList(context.Background(), cmd.OutOrStdout(), "")
+			return runList(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), "")
 		} else {
-			return runList(context.Background(), cmd.OutOrStdout(), args[0])
+			return runList(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 		}
 	},
 	ValidArgsFunction: completePods,
@@ -85,7 +87,57 @@ func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
 	return val
 }
 
-func runList(ctx context.Context, w io.Writer, name string) error {
+func runListOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[derivedFromEntry]any, error) {
+	policySet := make(map[derivedFromEntry]any)
+
+	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
+	}
+
+	endpointID, err := getPodEndpointID(ctx, dynamicClient, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
+	}
+
+	params := endpoint.GetEndpointIDParams{
+		Context: ctx,
+		ID:      strconv.FormatInt(endpointID, 10),
+	}
+	response, err := client.Endpoint.GetEndpointID(&params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get endpoint information: %w", err)
+	}
+	if response.Payload == nil ||
+		response.Payload.Status == nil ||
+		response.Payload.Status.Policy == nil ||
+		response.Payload.Status.Policy.Realized == nil ||
+		response.Payload.Status.Policy.Realized.L4 == nil ||
+		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
+		response.Payload.Status.Policy.Realized.L4.Egress == nil {
+		return nil, errors.New("api response is insufficient")
+	}
+
+	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
+	for _, rule := range ingressRules {
+		for _, r := range rule.DerivedFromRules {
+			entry := parseDerivedFromEntry(r, directionIngress)
+			policySet[entry] = struct{}{}
+		}
+	}
+
+	egressRules := response.Payload.Status.Policy.Realized.L4.Egress
+	for _, rule := range egressRules {
+		for _, r := range rule.DerivedFromRules {
+			entry := parseDerivedFromEntry(r, directionEgress)
+			policySet[entry] = struct{}{}
+		}
+	}
+
+	return policySet, nil
+}
+
+func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
@@ -97,50 +149,15 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
-	policySet := make(map[derivedFromEntry]struct{})
+	policySet := make(map[derivedFromEntry]any)
 	for _, pod := range pods {
-		client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+		policy, err := runListOnPod(ctx, clientset, dynamicClient, pod)
 		if err != nil {
-			return fmt.Errorf("failed to create Cilium client: %w", err)
+			fmt.Fprintf(stderr, "* %v\n", err)
+			continue
 		}
-
-		endpointID, err := getPodEndpointID(ctx, dynamicClient, pod.Namespace, pod.Name)
-		if err != nil {
-			return fmt.Errorf("failed to get pod endpoint ID: %w", err)
-		}
-
-		params := endpoint.GetEndpointIDParams{
-			Context: ctx,
-			ID:      strconv.FormatInt(endpointID, 10),
-		}
-		response, err := client.Endpoint.GetEndpointID(&params)
-		if err != nil {
-			return fmt.Errorf("failed to get endpoint information: %w", err)
-		}
-		if response.Payload == nil ||
-			response.Payload.Status == nil ||
-			response.Payload.Status.Policy == nil ||
-			response.Payload.Status.Policy.Realized == nil ||
-			response.Payload.Status.Policy.Realized.L4 == nil ||
-			response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
-			response.Payload.Status.Policy.Realized.L4.Egress == nil {
-			return errors.New("api response is insufficient")
-		}
-
-		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
-		for _, rule := range ingressRules {
-			for _, r := range rule.DerivedFromRules {
-				entry := parseDerivedFromEntry(r, directionIngress)
-				policySet[entry] = struct{}{}
-			}
-		}
-
-		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
-		for _, rule := range egressRules {
-			for _, r := range rule.DerivedFromRules {
-				entry := parseDerivedFromEntry(r, directionEgress)
-				policySet[entry] = struct{}{}
-			}
+		for k := range policy {
+			policySet[k] = struct{}{}
 		}
 	}
 
@@ -148,10 +165,10 @@ func runList(ctx context.Context, w io.Writer, name string) error {
 	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
 
 	if listOptions.manifests {
-		return listPolicyManifests(ctx, w, dynamicClient, policyList)
+		return listPolicyManifests(ctx, stdout, dynamicClient, policyList)
 	}
 
-	return writeSimpleOrJson(w, policyList, []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}, len(policyList), func(index int) []any {
+	return writeSimpleOrJson(stdout, policyList, []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}, len(policyList), func(index int) []any {
 		p := policyList[index]
 		return []any{p.Direction, p.Kind, p.Namespace, p.Name}
 	})
