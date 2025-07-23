@@ -14,7 +14,10 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 var trafficOptions struct {
@@ -35,9 +38,9 @@ var trafficCmd = &cobra.Command{
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			return runTraffic(context.Background(), cmd.OutOrStdout(), "")
+			return runTraffic(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), "")
 		} else {
-			return runTraffic(context.Background(), cmd.OutOrStdout(), args[0])
+			return runTraffic(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 		}
 	},
 	ValidArgsFunction: completePods,
@@ -79,7 +82,96 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 	return ret < 0
 }
 
-func runTraffic(ctx context.Context, w io.Writer, name string) error {
+func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient,
+	ids map[int]*unstructured.Unstructured, idEndpoints map[int][]*unstructured.Unstructured, filter policyFilter, pod *corev1.Pod,
+) (map[trafficKey]*trafficValue, error) {
+	traffic := make(map[trafficKey]*trafficValue)
+
+	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
+	}
+
+	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, err
+	}
+	if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
+		return nil, err
+	}
+
+	for _, p := range policies {
+		if (p.Packets == 0) || p.IsDenyRule() {
+			continue
+		}
+
+		var k trafficKey
+		if p.IsEgressRule() {
+			k.Direction = directionEgress
+		} else {
+			k.Direction = directionIngress
+		}
+
+		k.Namespace = "-"
+		if id, ok := ids[p.Key.Identity]; ok {
+			ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				k.Namespace = ns
+			}
+		}
+
+		k.Identity = p.Key.Identity
+		example := "-"
+		if v, ok := idEndpoints[p.Key.Identity]; ok {
+			i := rand.IntN(len(v))
+			example = v[i].GetName()
+		} else {
+			idObj := identity.NumericIdentity(p.Key.Identity)
+			if idObj.IsReservedIdentity() {
+				example = "reserved:" + idObj.String()
+			} else if idObj.HasLocalScope() {
+				response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
+				if err != nil {
+					return nil, err
+				}
+				if slices.Contains(response.Payload.Labels, "reserved:world") {
+					lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+					cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
+					if len(cidrModel) == 1 {
+						// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
+						// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
+						k.Identity = int(identity.ReservedIdentityWorld)
+						k.CIDR = strings.Split(cidrModel[0], ":")[1]
+						example = cidrModel[0]
+					}
+				}
+			}
+		}
+
+		k.WildcardProtocol = p.IsWildcardProtocol()
+		k.WildcardPort = p.IsWildcardPort()
+		k.Protocol = p.Key.Protocol
+		k.Port = p.Key.Port()
+
+		if _, ok := traffic[k]; ok {
+			traffic[k].Bytes += p.Bytes
+			traffic[k].Requests += p.Packets
+		} else {
+			traffic[k] = &trafficValue{
+				Example:  example,
+				Bytes:    p.Bytes,
+				Requests: p.Packets,
+			}
+		}
+	}
+
+	return traffic, nil
+}
+
+func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	filter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {
 		return err
@@ -106,84 +198,22 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	}
 
 	traffic := make(map[trafficKey]*trafficValue)
-	for _, p := range pods {
-		client, err := createCiliumClient(ctx, clientset, p.Namespace, p.Name)
+	for _, pod := range pods {
+		result, err := runTrafficOnPod(ctx, clientset, dynamicClient, ids, idEndpoints, filter, pod)
 		if err != nil {
-			return fmt.Errorf("failed to create Cilium client: %w", err)
+			fmt.Fprintf(stderr, "* %v\n", err)
+			continue
 		}
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, p.Namespace, p.Name)
-		if err != nil {
-			return err
-		}
-		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
-			return err
-		}
-
-		for _, p := range policies {
-			if (p.Packets == 0) || p.IsDenyRule() {
-				continue
-			}
-
-			var k trafficKey
-			if p.IsEgressRule() {
-				k.Direction = directionEgress
-			} else {
-				k.Direction = directionIngress
-			}
-
-			k.Namespace = "-"
-			if id, ok := ids[p.Key.Identity]; ok {
-				ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
-				if err != nil {
-					return err
-				}
-				if ok {
-					k.Namespace = ns
-				}
-			}
-
-			k.Identity = p.Key.Identity
-			example := "-"
-			if v, ok := idEndpoints[p.Key.Identity]; ok {
-				i := rand.IntN(len(v))
-				example = v[i].GetName()
-			} else {
-				idObj := identity.NumericIdentity(p.Key.Identity)
-				if idObj.IsReservedIdentity() {
-					example = "reserved:" + idObj.String()
-				} else if idObj.HasLocalScope() {
-					response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
-					if err != nil {
-						return err
-					}
-					if slices.Contains(response.Payload.Labels, "reserved:world") {
-						lbls := labels.NewLabelsFromModel(response.Payload.Labels)
-						cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
-						if len(cidrModel) == 1 {
-							// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
-							// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
-							k.Identity = int(identity.ReservedIdentityWorld)
-							k.CIDR = strings.Split(cidrModel[0], ":")[1]
-							example = cidrModel[0]
-						}
-					}
-				}
-			}
-
-			k.WildcardProtocol = p.IsWildcardProtocol()
-			k.WildcardPort = p.IsWildcardPort()
-			k.Protocol = p.Key.Protocol
-			k.Port = p.Key.Port()
-
+		for k, v := range result {
 			if _, ok := traffic[k]; ok {
-				traffic[k].Bytes += p.Bytes
-				traffic[k].Requests += p.Packets
+				traffic[k].Bytes += v.Bytes
+				traffic[k].Requests += v.Requests
 			} else {
 				traffic[k] = &trafficValue{
-					Example:  example,
-					Bytes:    p.Bytes,
-					Requests: p.Packets,
+					Example:  v.Example,
+					Bytes:    v.Bytes,
+					Requests: v.Requests,
 				}
 			}
 		}
@@ -196,7 +226,7 @@ func runTraffic(ctx context.Context, w io.Writer, name string) error {
 	sort.Slice(arr, func(i, j int) bool { return lessTrafficEntry(&arr[i], &arr[j]) })
 
 	header := []string{"DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
+	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
 		if p.WildcardProtocol {
