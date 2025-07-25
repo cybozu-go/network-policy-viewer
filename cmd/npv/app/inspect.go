@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 var inspectOptions struct {
@@ -30,18 +35,23 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
+	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)
 }
 
 var inspectCmd = &cobra.Command{
 	Use:   "inspect",
-	Short: "Inspect network policies applied to a pod",
-	Long:  `Inspect network policies applied to a pod`,
+	Short: "Inspect network policies of selected pods",
+	Long:  `Inspect network policies of selected pods`,
 
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runInspect(context.Background(), cmd.OutOrStdout(), args[0])
+		if len(args) == 0 {
+			return runInspect(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), "")
+		} else {
+			return runInspect(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
+		}
 	},
 	ValidArgsFunction: completePods,
 }
@@ -49,6 +59,7 @@ var inspectCmd = &cobra.Command{
 // This command aims to show the result of "cilium bpf policy get" from a remote pod.
 // https://github.com/cilium/cilium/blob/v1.16.3/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
+	Subject          string `json:"subject"`
 	Policy           string `json:"policy"`
 	Direction        string `json:"direction"`
 	Namespace        string `json:"namespace"`
@@ -60,6 +71,31 @@ type inspectEntry struct {
 	Port             int    `json:"port"`
 	Bytes            int    `json:"bytes"`
 	Requests         int    `json:"requests"`
+}
+
+func lessInspectEntry(x, y *inspectEntry) bool {
+	ret := strings.Compare(x.Subject, y.Subject)
+	if ret == 0 {
+		// List Deny first
+		ret = -strings.Compare(x.Policy, y.Policy)
+	}
+	if ret == 0 {
+		// List Ingress first
+		ret = -strings.Compare(x.Direction, y.Direction)
+	}
+	if ret == 0 {
+		ret = strings.Compare(x.Namespace, y.Namespace)
+	}
+	if ret == 0 {
+		ret = strings.Compare(x.Example, y.Example)
+	}
+	if ret == 0 {
+		ret = x.Protocol - y.Protocol
+	}
+	if ret == 0 {
+		ret = x.Port - y.Port
+	}
+	return ret < 0
 }
 
 func parseInspectOptions() {
@@ -77,45 +113,33 @@ func parseInspectOptions() {
 	}
 }
 
-func runInspect(ctx context.Context, w io.Writer, name string) error {
-	parseInspectOptions()
-	basicFilter := makeBasicFilter(
-		inspectOptions.ingress, inspectOptions.egress,
-		inspectOptions.allowed, inspectOptions.denied,
-		inspectOptions.used, inspectOptions.unused,
-	)
-	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
+func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
+	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
 	if err != nil {
-		return err
-	}
-	filter := makeAllFilter(basicFilter, withFilter)
-
-	clientset, dynamicClient, err := createK8sClients()
-	if err != nil {
-		return err
-	}
-
-	client, err := createCiliumClient(ctx, clientset, rootOptions.namespace, name)
-	if err != nil {
-		return fmt.Errorf("failed to create Cilium client: %w", err)
-	}
-
-	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, rootOptions.namespace, name)
-	if err != nil {
-		return err
-	}
-	if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
-		return err
+		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
 	ids, err := getIdentityResourceMap(ctx, dynamicClient)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, err
+	}
+	if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
+		return nil, err
 	}
 
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
+		if rootOptions.allNamespaces {
+			entry.Subject = pod.Namespace + "/" + pod.Name
+		} else {
+			entry.Subject = pod.Name
+		}
 		if p.IsDenyRule() {
 			entry.Policy = policyDeny
 		} else {
@@ -130,7 +154,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		if id, ok := ids[p.Key.Identity]; ok {
 			ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if ok {
 				entry.Namespace = ns
@@ -139,7 +163,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		entry.Example = "-"
 		example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if example != nil {
 			entry.Example = example.GetName()
@@ -150,7 +174,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 			} else if idObj.HasLocalScope() {
 				response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if slices.Contains(response.Payload.Labels, "reserved:world") {
 					lbls := labels.NewLabelsFromModel(response.Payload.Labels)
@@ -171,9 +195,49 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		arr[i] = entry
 	}
 
-	// I don't know it is safe to sort the result of "cilium bpf policy get", so let's keep the original order.
+	sort.Slice(arr, func(i, j int) bool { return lessInspectEntry(&arr[i], &arr[j]) })
+	return arr, nil
+}
+
+func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
+	parseInspectOptions()
+	basicFilter := makeBasicFilter(
+		inspectOptions.ingress, inspectOptions.egress,
+		inspectOptions.allowed, inspectOptions.denied,
+		inspectOptions.used, inspectOptions.unused,
+	)
+	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
+	if err != nil {
+		return err
+	}
+	filter := makeAllFilter(basicFilter, withFilter)
+
+	clientset, dynamicClient, err := createK8sClients()
+	if err != nil {
+		return err
+	}
+
+	pods, err := selectSubjectPods(ctx, clientset, name, commonOptions.selector)
+	if err != nil {
+		return err
+	}
+
+	arr := make([]inspectEntry, 0)
+	for _, pod := range pods {
+		result, err := runInspectOnPod(ctx, clientset, dynamicClient, filter, pod)
+		if err != nil {
+			fmt.Fprintf(stderr, "* %v\n", err)
+			continue
+		}
+		arr = append(arr, result...)
+	}
+
+	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
+	if name == "" {
+		header = append(subHeader, header...)
+	}
+	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		protocol := u8proto.U8proto(p.Protocol).String()
 		var port string
@@ -183,6 +247,11 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 			port = strconv.Itoa(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		subValues := []any{p.Subject, "|"}
+		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		if name == "" {
+			values = append(subValues, values...)
+		}
+		return values
 	})
 }
