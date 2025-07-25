@@ -95,23 +95,19 @@ func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, nam
 		}
 		return []*corev1.Pod{pod}, nil
 	} else {
-		return listCiliumManagedPods(ctx, clientset, ns, metav1.ListOptions{
+		opts := metav1.ListOptions{
 			LabelSelector: selector,
-		})
+		}
+		node := rootOptions.node
+		if node != "" {
+			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", rootOptions.node).String()
+		}
+
+		return listCiliumManagedPods(ctx, clientset, ns, opts)
 	}
 }
 
 func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
-	node := rootOptions.node
-	if node != "" {
-		baseSelector, err := fields.ParseSelector(opts.FieldSelector)
-		if err != nil {
-			return nil, err
-		}
-		nodeSelector := fields.OneTermEqualSelector("spec.nodeName", rootOptions.node)
-		opts.FieldSelector = fields.AndSelectors(baseSelector, nodeSelector).String()
-	}
-
 	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
 	if err != nil {
 		return nil, err
