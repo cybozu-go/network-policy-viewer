@@ -278,11 +278,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
-		if p.WildcardProtocol {
-			protocol = "ANY"
-		} else {
-			protocol = u8proto.U8proto(p.Protocol).String()
-		}
+		protocol = u8proto.U8proto(p.Protocol).String()
 		if p.WildcardPort {
 			port = "ANY"
 		} else {

@@ -229,11 +229,7 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		var protocol, port string
-		if p.WildcardProtocol {
-			protocol = "ANY"
-		} else {
-			protocol = u8proto.U8proto(p.Protocol).String()
-		}
+		protocol = u8proto.U8proto(p.Protocol).String()
 		if p.WildcardPort {
 			port = "ANY"
 		} else {
