@@ -22,12 +22,11 @@ import (
 )
 
 var listOptions struct {
-	selector  string
 	manifests bool
 }
 
 func init() {
-	listCmd.Flags().StringVarP(&listOptions.selector, "selector", "l", "", "specify label constraints")
+	addSelectorOption(listCmd)
 	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
 	rootCmd.AddCommand(listCmd)
 }
@@ -143,7 +142,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := selectSubjectPods(ctx, clientset, name, listOptions.selector)
+	pods, err := selectSubjectPods(ctx, clientset, name, commonOptions.selector)
 	if err != nil {
 		return err
 	}

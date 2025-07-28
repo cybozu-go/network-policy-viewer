@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
@@ -78,7 +77,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 	}
 
 	summary := make([]summaryEntry, 0)
-	pods, err := listCiliumManagedPods(ctx, clientset, getSubjectNamespace(), metav1.ListOptions{})
+	pods, err := selectSubjectPods(ctx, clientset, "", "")
 	if err != nil {
 		return err
 	}
