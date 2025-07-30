@@ -6,7 +6,6 @@ import (
 	"io"
 	"math/rand/v2"
 	"slices"
-	"strconv"
 
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -54,13 +53,13 @@ type inspectEntry struct {
 	Direction        string `json:"direction"`
 	Namespace        string `json:"namespace"`
 	Example          string `json:"example_endpoint"`
-	Identity         int    `json:"identity"`
+	Identity         uint32 `json:"identity"`
 	WildcardProtocol bool   `json:"wildcard_protocol"`
 	WildcardPort     bool   `json:"wildcard_port"`
-	Protocol         int    `json:"protocol"`
-	Port             int    `json:"port"`
-	Bytes            int    `json:"bytes"`
-	Requests         int    `json:"requests"`
+	Protocol         uint8  `json:"protocol"`
+	Port             uint16 `json:"port"`
+	Bytes            uint64 `json:"bytes"`
+	Requests         uint64 `json:"requests"`
 }
 
 func parseInspectOptions() {
@@ -122,12 +121,12 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
-		if p.IsDenyRule() {
+		if p.IsDeny() {
 			entry.Policy = policyDeny
 		} else {
 			entry.Policy = policyAllow
 		}
-		if p.IsEgressRule() {
+		if p.IsEgress() {
 			entry.Direction = directionEgress
 		} else {
 			entry.Direction = directionIngress
@@ -167,8 +166,8 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		entry.Identity = p.Key.Identity
 		entry.WildcardProtocol = p.IsWildcardProtocol()
 		entry.WildcardPort = p.IsWildcardPort()
-		entry.Protocol = p.Key.Protocol
-		entry.Port = p.Key.Port()
+		entry.Protocol = p.GetProtocol()
+		entry.Port = p.Key.GetDestPort()
 		entry.Bytes = p.Bytes
 		entry.Requests = p.Packets
 		arr[i] = entry
@@ -187,7 +186,7 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		if p.WildcardPort {
 			port = "ANY"
 		} else {
-			port = strconv.Itoa(p.Port)
+			port = fmt.Sprint(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		return []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}

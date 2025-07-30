@@ -58,7 +58,7 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 	return endpointID, nil
 }
 
-func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
+func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (uint32, error) {
 	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return 0, err
@@ -72,7 +72,7 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 		return 0, fmt.Errorf("pod %s/%s does not have security identity", namespace, name)
 	}
 
-	return identity, nil
+	return uint32(identity), nil
 }
 
 func getSubjectNamespace() string {
@@ -133,35 +133,35 @@ func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespa
 
 // key: identity number
 // value: CiliumIdentity resource
-func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[int]*unstructured.Unstructured, error) {
+func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[uint32]*unstructured.Unstructured, error) {
 	li, err := d.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make(map[int]*unstructured.Unstructured)
+	ret := make(map[uint32]*unstructured.Unstructured)
 	for _, item := range li.Items {
 		id, err := strconv.Atoi(item.GetName())
 		if err != nil {
 			return nil, err
 		}
-		ret[id] = &item
+		ret[uint32(id)] = &item
 	}
 	return ret, nil
 }
 
 // key: identity number
 // value: CiliumEndpoint array
-func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[int][]*unstructured.Unstructured, error) {
+func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[uint32][]*unstructured.Unstructured, error) {
 	li, err := d.Resource(gvrEndpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make(map[int][]*unstructured.Unstructured)
+	ret := make(map[uint32][]*unstructured.Unstructured)
 	for _, ep := range li.Items {
 		identity64, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
-		identity := int(identity64)
+		identity := uint32(identity64)
 		if err != nil {
 			return nil, err
 		}
@@ -225,9 +225,9 @@ func isChildCIDR(parent, child *net.IPNet) bool {
 	return p <= c
 }
 
-func formatWithUnits(v int) string {
+func formatWithUnits(v uint64) string {
 	if v < 1024 || !rootOptions.units {
-		return strconv.Itoa(v)
+		return fmt.Sprint(v)
 	}
 
 	units := "_KMGTPEZY"
@@ -240,7 +240,7 @@ func formatWithUnits(v int) string {
 	return fmt.Sprintf("%.1f%c", fv, units[i])
 }
 
-func computeAverage(bytes, count int) float64 {
+func computeAverage(bytes, count uint64) float64 {
 	if count == 0 {
 		return 0
 	}
