@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"slices"
 	"sort"
 	"strconv"
@@ -20,12 +19,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-var trafficOptions struct {
-	selector string
-}
-
 func init() {
-	trafficCmd.Flags().StringVarP(&trafficOptions.selector, "selector", "l", "", "specify label constraints")
+	addSelectorOption(trafficCmd)
 	addWithCIDROptions(trafficCmd)
 	rootCmd.AddCommand(trafficCmd)
 }
@@ -82,14 +77,17 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 	return ret < 0
 }
 
-func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient,
-	ids map[int]*unstructured.Unstructured, idEndpoints map[int][]*unstructured.Unstructured, filter policyFilter, pod *corev1.Pod,
-) (map[trafficKey]*trafficValue, error) {
+func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) (map[trafficKey]*trafficValue, error) {
 	traffic := make(map[trafficKey]*trafficValue)
 
 	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
+	}
+
+	ids, err := getIdentityResourceMap(ctx, dynamicClient)
+	if err != nil {
+		return nil, err
 	}
 
 	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
@@ -125,9 +123,12 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 
 		k.Identity = p.Key.Identity
 		example := "-"
-		if v, ok := idEndpoints[p.Key.Identity]; ok {
-			i := rand.IntN(len(v))
-			example = v[i].GetName()
+		exampleEndpoint, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
+		if err != nil {
+			return nil, err
+		}
+		if exampleEndpoint != nil {
+			example = exampleEndpoint.GetName()
 		} else {
 			idObj := identity.NumericIdentity(p.Key.Identity)
 			if idObj.IsReservedIdentity() {
@@ -182,24 +183,14 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	pods, err := selectSubjectPods(ctx, clientset, name, trafficOptions.selector)
-	if err != nil {
-		return err
-	}
-
-	ids, err := getIdentityResourceMap(ctx, dynamicClient)
-	if err != nil {
-		return err
-	}
-
-	idEndpoints, err := getIdentityEndpoints(ctx, dynamicClient)
+	pods, err := selectSubjectPods(ctx, clientset, name, commonOptions.selector)
 	if err != nil {
 		return err
 	}
 
 	traffic := make(map[trafficKey]*trafficValue)
 	for _, pod := range pods {
-		result, err := runTrafficOnPod(ctx, clientset, dynamicClient, ids, idEndpoints, filter, pod)
+		result, err := runTrafficOnPod(ctx, clientset, dynamicClient, filter, pod)
 		if err != nil {
 			fmt.Fprintf(stderr, "* %v\n", err)
 			continue
@@ -228,12 +219,8 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	header := []string{"DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
-		var protocol, port string
-		if p.WildcardProtocol {
-			protocol = "ANY"
-		} else {
-			protocol = u8proto.U8proto(p.Protocol).String()
-		}
+		protocol := u8proto.U8proto(p.Protocol).String()
+		var port string
 		if p.WildcardPort {
 			port = "ANY"
 		} else {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"slices"
 	"strconv"
 
@@ -114,11 +113,6 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	idEndpoints, err := getIdentityEndpoints(ctx, dynamicClient)
-	if err != nil {
-		return err
-	}
-
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
@@ -143,9 +137,12 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 			}
 		}
 		entry.Example = "-"
-		if v, ok := idEndpoints[p.Key.Identity]; ok {
-			i := rand.IntN(len(v))
-			entry.Example = v[i].GetName()
+		example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
+		if err != nil {
+			return err
+		}
+		if example != nil {
+			entry.Example = example.GetName()
 		} else {
 			idObj := identity.NumericIdentity(p.Key.Identity)
 			if idObj.IsReservedIdentity() {
@@ -178,12 +175,8 @@ func runInspect(ctx context.Context, w io.Writer, name string) error {
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
 	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
-		var protocol, port string
-		if p.WildcardProtocol {
-			protocol = "ANY"
-		} else {
-			protocol = u8proto.U8proto(p.Protocol).String()
-		}
+		protocol := u8proto.U8proto(p.Protocol).String()
+		var port string
 		if p.WildcardPort {
 			port = "ANY"
 		} else {

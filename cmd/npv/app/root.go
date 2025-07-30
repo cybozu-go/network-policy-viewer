@@ -36,7 +36,8 @@ func (c cidrOptions) isSet() bool {
 }
 
 var commonOptions struct {
-	with cidrOptions
+	selector string
+	with     cidrOptions
 }
 
 func init() {
@@ -51,6 +52,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rootOptions.units, "units", "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
 	rootCmd.RegisterFlagCompletionFunc("node", completeNodes)
+}
+
+func addSelectorOption(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&commonOptions.selector, "selector", "l", "", "specify label constraints")
 }
 
 func addWithCIDROptions(cmd *cobra.Command) {
