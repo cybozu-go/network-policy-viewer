@@ -221,6 +221,7 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		unstructured.RemoveNestedField(resource.Object, "metadata", "managedFields")
 		unstructured.RemoveNestedField(resource.Object, "metadata", "resourceVersion")
 		unstructured.RemoveNestedField(resource.Object, "metadata", "uid")
+		unstructured.RemoveNestedField(resource.Object, "status")
 
 		data, err := yaml.Marshal(resource.Object)
 		if err != nil {
