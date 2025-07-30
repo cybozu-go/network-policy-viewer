@@ -89,7 +89,7 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 	arr := make([]manifestRangeEntry, 0)
 	sort.Slice(arr, func(i, j int) bool { return lessManifestRangeEntry(&arr[i], &arr[j]) })
 
-	for _, ep := range idEndpoints[int(fromIdentity)] {
+	for _, ep := range idEndpoints[fromIdentity] {
 		entry := manifestRangeEntry{
 			Part:      "From",
 			Namespace: ep.GetNamespace(),
@@ -97,7 +97,7 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 		}
 		arr = append(arr, entry)
 	}
-	for _, ep := range idEndpoints[int(toIdentity)] {
+	for _, ep := range idEndpoints[toIdentity] {
 		entry := manifestRangeEntry{
 			Part:      "To",
 			Namespace: ep.GetNamespace(),

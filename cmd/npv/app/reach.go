@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
 
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
@@ -52,15 +51,15 @@ type reachEntry struct {
 	Role             string `json:"role"`
 	Direction        string `json:"direction"`
 	Policy           string `json:"policy"`
-	Identity         int    `json:"identity"`
+	Identity         uint32 `json:"identity"`
 	Namespace        string `json:"namespace"`
 	Example          string `json:"example_endpoint"`
 	WildcardProtocol bool   `json:"wildcard_protocol"`
 	WildcardPort     bool   `json:"wildcard_port"`
-	Protocol         int    `json:"protocol"`
-	Port             int    `json:"port"`
-	Bytes            int    `json:"bytes"`
-	Requests         int    `json:"requests"`
+	Protocol         uint8  `json:"protocol"`
+	Port             uint16 `json:"port"`
+	Bytes            uint64 `json:"bytes"`
+	Requests         uint64 `json:"requests"`
 }
 
 func runReach(ctx context.Context, w io.Writer) error {
@@ -109,7 +108,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			if err != nil {
 				return err
 			}
-			filter = makeIdentityFilter(false, true, int(identity))
+			filter = makeIdentityFilter(false, true, identity)
 		case reachOptions.toCIDR.isSet():
 			filter, err = parseCIDROptions(false, true, "to", &reachOptions.toCIDR)
 			if err != nil {
@@ -136,7 +135,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			var entry reachEntry
 			entry.Role = trafficRoleSender
 			entry.Direction = directionEgress
-			if p.IsDenyRule() {
+			if p.IsDeny() {
 				entry.Policy = policyDeny
 			} else {
 				entry.Policy = policyAllow
@@ -179,8 +178,8 @@ func runReach(ctx context.Context, w io.Writer) error {
 			entry.Identity = p.Key.Identity
 			entry.WildcardProtocol = p.IsWildcardProtocol()
 			entry.WildcardPort = p.IsWildcardPort()
-			entry.Protocol = p.Key.Protocol
-			entry.Port = p.Key.Port()
+			entry.Protocol = p.GetProtocol()
+			entry.Port = p.Key.GetDestPort()
 			entry.Bytes = p.Bytes
 			entry.Requests = p.Packets
 			arr = append(arr, entry)
@@ -196,7 +195,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			if err != nil {
 				return err
 			}
-			filter = makeIdentityFilter(true, false, int(identity))
+			filter = makeIdentityFilter(true, false, identity)
 		case reachOptions.fromCIDR.isSet():
 			filter, err = parseCIDROptions(true, false, "from", &reachOptions.fromCIDR)
 			if err != nil {
@@ -223,7 +222,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			var entry reachEntry
 			entry.Role = trafficRoleReceiver
 			entry.Direction = directionIngress
-			if p.IsDenyRule() {
+			if p.IsDeny() {
 				entry.Policy = policyDeny
 			} else {
 				entry.Policy = policyAllow
@@ -266,8 +265,8 @@ func runReach(ctx context.Context, w io.Writer) error {
 			entry.Identity = p.Key.Identity
 			entry.WildcardProtocol = p.IsWildcardProtocol()
 			entry.WildcardPort = p.IsWildcardPort()
-			entry.Protocol = p.Key.Protocol
-			entry.Port = p.Key.Port()
+			entry.Protocol = p.GetProtocol()
+			entry.Port = p.Key.GetDestPort()
 			entry.Bytes = p.Bytes
 			entry.Requests = p.Packets
 			arr = append(arr, entry)
@@ -282,7 +281,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 		if p.WildcardPort {
 			port = "ANY"
 		} else {
-			port = strconv.Itoa(p.Port)
+			port = fmt.Sprint(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
