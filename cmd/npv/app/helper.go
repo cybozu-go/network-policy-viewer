@@ -10,24 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-
-	"k8s.io/apimachinery/pkg/types"
 )
-
-func getSubjectNamespace() string {
-	if rootOptions.allNamespaces {
-		return ""
-	}
-	return rootOptions.namespace
-}
-
-func parseNamespacedName(nn string) (types.NamespacedName, error) {
-	li := strings.Split(nn, "/")
-	if len(li) != 2 {
-		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
-	}
-	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
-}
 
 func parseCIDRFlag(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {
 	incl = make([]*net.IPNet, 0)
