@@ -12,6 +12,12 @@ import (
 	"text/tabwriter"
 )
 
+var privateCIDRs []*net.IPNet
+
+func init() {
+	privateCIDRs, _, _ = parseCIDRFlag("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+}
+
 func parseCIDRFlag(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {
 	incl = make([]*net.IPNet, 0)
 	excl = make([]*net.IPNet, 0)
@@ -54,6 +60,24 @@ func isChildCIDR(parent, child *net.IPNet) bool {
 	p, _ := parent.Mask.Size()
 	c, _ := child.Mask.Size()
 	return p <= c
+}
+
+func isPrivateCIDR(c *net.IPNet) bool {
+	for _, p := range privateCIDRs {
+		if isChildCIDR(p, c) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPublicCIDR(c *net.IPNet) bool {
+	for _, p := range privateCIDRs {
+		if isChildCIDR(c, p) {
+			return false
+		}
+	}
+	return true
 }
 
 func formatWithUnits(v int) string {
