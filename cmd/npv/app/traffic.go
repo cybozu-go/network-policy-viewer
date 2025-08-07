@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"slices"
 	"sort"
 	"strconv"
@@ -19,9 +20,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var trafficOptions struct {
+	unifyExternal bool
+}
+
 func init() {
 	addSelectorOption(trafficCmd)
 	addWithCIDROptions(trafficCmd)
+	trafficCmd.Flags().BoolVar(&trafficOptions.unifyExternal, "unify-external", false, "unify cluster-external traffic into public, private, and unknown")
 	rootCmd.AddCommand(trafficCmd)
 }
 
@@ -145,8 +151,26 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 						// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
 						// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
 						k.Identity = int(identity.ReservedIdentityWorld)
-						k.CIDR = strings.Split(cidrModel[0], ":")[1]
-						example = cidrModel[0]
+						cidr := strings.Split(cidrModel[0], ":")[1]
+						if trafficOptions.unifyExternal {
+							_, c, err := net.ParseCIDR(cidr)
+							if err != nil {
+								return nil, err
+							}
+							switch {
+							case isPrivateCIDR(c):
+								cidr = "private"
+							case isPublicCIDR(c):
+								cidr = "public"
+							default:
+								cidr = "unknown"
+							}
+							k.CIDR = cidr
+							example = fmt.Sprintf("cidr:%s", cidr)
+						} else {
+							k.CIDR = cidr
+							example = cidrModel[0]
+						}
 					}
 				}
 			}
