@@ -73,7 +73,7 @@ func isPrivateCIDR(c *net.IPNet) bool {
 
 func isPublicCIDR(c *net.IPNet) bool {
 	for _, p := range privateCIDRs {
-		if isChildCIDR(c, p) {
+		if isChildCIDR(c, p) || isChildCIDR(p, c) {
 			return false
 		}
 	}
