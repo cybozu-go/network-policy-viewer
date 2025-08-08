@@ -222,12 +222,17 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
 			return false, nil
 		}
-		if p.Key.Identity == 0 {
+
+		idObj := identity.NumericIdentity(p.Key.Identity)
+		switch idObj {
+		case identity.IdentityUnknown:
+		case identity.ReservedIdentityWorld:
+		case identity.ReservedIdentityWorldIPv4:
+		case identity.ReservedIdentityWorldIPv6:
 			return true, nil
 		}
 
 		// If the identity is not locally-scoped, it is not representing a CIDR
-		idObj := identity.NumericIdentity(p.Key.Identity)
 		if !idObj.HasLocalScope() {
 			return false, nil
 		}
