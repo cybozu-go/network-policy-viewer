@@ -225,10 +225,10 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 
 		idObj := identity.NumericIdentity(p.Key.Identity)
 		switch idObj {
-		case identity.IdentityUnknown:
-		case identity.ReservedIdentityWorld:
-		case identity.ReservedIdentityWorldIPv4:
-		case identity.ReservedIdentityWorldIPv6:
+		case identity.IdentityUnknown,
+			identity.ReservedIdentityWorld,
+			identity.ReservedIdentityWorldIPv4,
+			identity.ReservedIdentityWorldIPv6:
 			return true, nil
 		}
 
