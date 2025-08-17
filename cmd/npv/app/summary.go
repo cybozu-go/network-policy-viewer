@@ -57,13 +57,13 @@ func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 
 	for _, p := range policies {
 		switch {
-		case p.IsEgressRule() && p.IsDenyRule():
+		case p.IsEgress() && p.IsDeny():
 			entry.EgressDeny++
-		case p.IsEgressRule() && !p.IsDenyRule():
+		case p.IsEgress() && p.IsAllow():
 			entry.EgressAllow++
-		case !p.IsEgressRule() && p.IsDenyRule():
+		case p.IsIngress() && p.IsDeny():
 			entry.IngressDeny++
-		case !p.IsEgressRule() && !p.IsDenyRule():
+		case p.IsIngress() && p.IsAllow():
 			entry.IngressAllow++
 		}
 	}
