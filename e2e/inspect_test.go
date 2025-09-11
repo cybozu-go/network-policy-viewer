@@ -184,6 +184,11 @@ Allow,Ingress,reserved:host,false,false,6,8000
 Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
+			Selector:  "test=l4-ingress-all-allow-tcp",
+			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0"},
+			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
+		},
+		{
 			ExtraArgs: []string{"--used"},
 			Expected: `Allow,Ingress,self,true,true,0,0
 Allow,Ingress,self,false,false,6,8000
