@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"slices"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 )
@@ -80,9 +79,9 @@ func isPublicCIDR(c *net.IPNet) bool {
 	return true
 }
 
-func formatWithUnits(v int) string {
+func formatWithUnits(v uint64) string {
 	if v < 1024 || !rootOptions.units {
-		return strconv.Itoa(v)
+		return fmt.Sprint(v)
 	}
 
 	units := "_KMGTPEZY"
@@ -95,7 +94,7 @@ func formatWithUnits(v int) string {
 	return fmt.Sprintf("%.1f%c", fv, units[i])
 }
 
-func computeAverage(bytes, count int) float64 {
+func computeAverage(bytes, count uint64) float64 {
 	if count == 0 {
 		return 0
 	}

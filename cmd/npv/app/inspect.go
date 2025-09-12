@@ -6,7 +6,6 @@ import (
 	"io"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/cilium/cilium/pkg/identity"
@@ -64,13 +63,13 @@ type inspectEntry struct {
 	Direction        string `json:"direction"`
 	Namespace        string `json:"namespace"`
 	Example          string `json:"example_endpoint"`
-	Identity         int    `json:"identity"`
+	Identity         uint32 `json:"identity"`
 	WildcardProtocol bool   `json:"wildcard_protocol"`
 	WildcardPort     bool   `json:"wildcard_port"`
-	Protocol         int    `json:"protocol"`
-	Port             int    `json:"port"`
-	Bytes            int    `json:"bytes"`
-	Requests         int    `json:"requests"`
+	Protocol         uint8  `json:"protocol"`
+	Port             uint16 `json:"port"`
+	Bytes            uint64 `json:"bytes"`
+	Requests         uint64 `json:"requests"`
 }
 
 func lessInspectEntry(x, y *inspectEntry) bool {
@@ -90,10 +89,10 @@ func lessInspectEntry(x, y *inspectEntry) bool {
 		ret = strings.Compare(x.Example, y.Example)
 	}
 	if ret == 0 {
-		ret = x.Protocol - y.Protocol
+		ret = int(x.Protocol) - int(y.Protocol)
 	}
 	if ret == 0 {
-		ret = x.Port - y.Port
+		ret = int(x.Port) - int(y.Port)
 	}
 	return ret < 0
 }
@@ -140,12 +139,12 @@ func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 		} else {
 			entry.Subject = pod.Name
 		}
-		if p.IsDenyRule() {
+		if p.IsDeny() {
 			entry.Policy = policyDeny
 		} else {
 			entry.Policy = policyAllow
 		}
-		if p.IsEgressRule() {
+		if p.IsEgress() {
 			entry.Direction = directionEgress
 		} else {
 			entry.Direction = directionIngress
@@ -188,8 +187,8 @@ func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 		entry.Identity = p.Key.Identity
 		entry.WildcardProtocol = p.IsWildcardProtocol()
 		entry.WildcardPort = p.IsWildcardPort()
-		entry.Protocol = p.Key.Protocol
-		entry.Port = p.Key.Port()
+		entry.Protocol = p.GetProtocol()
+		entry.Port = p.Key.GetDestPort()
 		entry.Bytes = p.Bytes
 		entry.Requests = p.Packets
 		arr[i] = entry
@@ -244,7 +243,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		if p.WildcardPort {
 			port = "ANY"
 		} else {
-			port = strconv.Itoa(p.Port)
+			port = fmt.Sprint(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		subValues := []any{p.Subject, "|"}

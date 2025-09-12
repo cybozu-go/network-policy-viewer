@@ -7,7 +7,6 @@ import (
 	"net"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/cilium/cilium/pkg/identity"
@@ -49,19 +48,19 @@ var trafficCmd = &cobra.Command{
 
 type trafficKey struct {
 	Direction        string `json:"direction"`
-	Identity         int    `json:"identity"`
+	Identity         uint32 `json:"identity"`
 	Namespace        string `json:"namespace"`
 	CIDR             string `json:"cidr"`
 	WildcardProtocol bool   `json:"wildcard_protocol"`
 	WildcardPort     bool   `json:"wildcard_port"`
-	Protocol         int    `json:"protocol"`
-	Port             int    `json:"port"`
+	Protocol         uint8  `json:"protocol"`
+	Port             uint16 `json:"port"`
 }
 
 type trafficValue struct {
 	Example  string `json:"example_endpoint"`
-	Bytes    int    `json:"bytes"`
-	Requests int    `json:"requests"`
+	Bytes    uint64 `json:"bytes"`
+	Requests uint64 `json:"requests"`
 }
 
 type trafficEntry struct {
@@ -75,7 +74,7 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 		ret = strings.Compare(x.Namespace, y.Namespace)
 	}
 	if ret == 0 {
-		ret = x.Identity - y.Identity
+		ret = int(x.Identity) - int(y.Identity)
 	}
 	if ret == 0 {
 		ret = strings.Compare(x.CIDR, y.CIDR)
@@ -105,12 +104,12 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 	}
 
 	for _, p := range policies {
-		if (p.Packets == 0) || p.IsDenyRule() {
+		if (p.Packets == 0) || p.IsDeny() {
 			continue
 		}
 
 		var k trafficKey
-		if p.IsEgressRule() {
+		if p.IsEgress() {
 			k.Direction = directionEgress
 		} else {
 			k.Direction = directionIngress
@@ -150,7 +149,7 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 					if len(cidrModel) == 1 {
 						// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
 						// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
-						k.Identity = int(identity.ReservedIdentityWorld)
+						k.Identity = uint32(identity.ReservedIdentityWorld)
 						cidr := strings.Split(cidrModel[0], ":")[1]
 						if trafficOptions.unifyExternal {
 							_, c, err := net.ParseCIDR(cidr)
@@ -178,8 +177,8 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 
 		k.WildcardProtocol = p.IsWildcardProtocol()
 		k.WildcardPort = p.IsWildcardPort()
-		k.Protocol = p.Key.Protocol
-		k.Port = p.Key.Port()
+		k.Protocol = p.GetProtocol()
+		k.Port = p.Key.GetDestPort()
 
 		if _, ok := traffic[k]; ok {
 			traffic[k].Bytes += p.Bytes
@@ -248,7 +247,7 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		if p.WildcardPort {
 			port = "ANY"
 		} else {
-			port = strconv.Itoa(p.Port)
+			port = fmt.Sprint(p.Port)
 		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		return []any{p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}

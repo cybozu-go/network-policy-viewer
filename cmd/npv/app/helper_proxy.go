@@ -17,6 +17,8 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -24,7 +26,7 @@ import (
 
 var (
 	cachedCiliumClients = make(map[string]*client.Client)
-	cachedLocalIdentity = make(map[*client.Client]map[int]*policy.GetIdentityIDOK)
+	cachedLocalIdentity = make(map[*client.Client]map[uint32]*policy.GetIdentityIDOK)
 )
 
 func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
@@ -69,9 +71,9 @@ func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, na
 	return ciliumClient, err
 }
 
-func queryLocalIdentity(ctx context.Context, client *client.Client, id int) (*policy.GetIdentityIDOK, error) {
+func queryLocalIdentity(ctx context.Context, client *client.Client, id uint32) (*policy.GetIdentityIDOK, error) {
 	if _, ok := cachedLocalIdentity[client]; !ok {
-		cachedLocalIdentity[client] = make(map[int]*policy.GetIdentityIDOK)
+		cachedLocalIdentity[client] = make(map[uint32]*policy.GetIdentityIDOK)
 	}
 	if _, ok := cachedLocalIdentity[client][id]; !ok {
 		// If the identity is in the local scope, it is only valid on the reporting node.
@@ -91,48 +93,34 @@ func queryLocalIdentity(ctx context.Context, client *client.Client, id int) (*po
 	return cachedLocalIdentity[client][id], nil
 }
 
-type policyEntryKey struct {
-	Identity  int `json:"Identity"`
-	Direction int `json:"TrafficDirection"`
-	Protocol  int `json:"Nexthdr"`
-	BigPort   int `json:"DestPortNetwork"` // big endian
-}
-
-func (p policyEntryKey) Port() int {
-	return ((p.BigPort & 0xFF) << 8) + ((p.BigPort & 0xFF00) >> 8)
-}
-
 // For the meanings of the flags, see:
-// https://github.com/cilium/cilium/blob/v1.16.3/bpf/lib/common.h#L394
+// https://github.com/cilium/cilium/blob/v1.16.12/bpf/lib/common.h#L396
 type policyEntry struct {
-	Flags   int            `json:"Flags"`
-	Packets int            `json:"Packets"`
-	Bytes   int            `json:"Bytes"`
-	Key     policyEntryKey `json:"Key"`
+	policymap.PolicyEntryDump
 }
 
-func (p policyEntry) IsAllowRule() bool {
-	return !p.IsDenyRule()
+func (p policyEntry) IsAllow() bool {
+	return !p.IsDeny()
 }
 
-func (p policyEntry) IsDenyRule() bool {
-	return (p.Flags & 1) > 0
+func (p policyEntry) IsIngress() bool {
+	return !p.IsEgress()
 }
 
-func (p policyEntry) IsIngressRule() bool {
-	return !p.IsEgressRule()
+func (p policyEntry) IsEgress() bool {
+	return p.Key.TrafficDirection == uint8(trafficdirection.Egress)
 }
 
-func (p policyEntry) IsEgressRule() bool {
-	return p.Key.Direction > 0
+func (p policyEntry) GetProtocol() uint8 {
+	return p.Key.Nexthdr
 }
 
 func (p policyEntry) IsWildcardProtocol() bool {
-	return (p.Flags & 2) > 0
+	return p.Key.Nexthdr == 0
 }
 
 func (p policyEntry) IsWildcardPort() bool {
-	return (p.Flags & 4) > 0
+	return p.Key.GetDestPort() == 0
 }
 
 func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]policyEntry, error) {
@@ -176,15 +164,15 @@ func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policy
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
 		ret := true
 		switch {
-		case p.IsIngressRule():
+		case p.IsIngress():
 			ret = ret && ingress
-		case p.IsEgressRule():
+		case p.IsEgress():
 			ret = ret && egress
 		}
 		switch {
-		case p.IsAllowRule():
+		case p.IsAllow():
 			ret = ret && allowed
-		case p.IsDenyRule():
+		case p.IsDeny():
 			ret = ret && denied
 		}
 		switch {
@@ -197,9 +185,9 @@ func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policy
 	}
 }
 
-func makeIdentityFilter(ingress, egress bool, id int) policyFilter {
+func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
-		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
+		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
 		if p.Key.Identity == 0 {
@@ -219,7 +207,7 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 	incl = ip.RemoveCIDRs(incl, excl)
 
 	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
-		if (p.IsIngressRule() && !ingress) || (p.IsEgressRule() && !egress) {
+		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
 
