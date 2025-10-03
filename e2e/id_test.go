@@ -124,40 +124,40 @@ func testIdSummary() {
 }
 
 func testIdTree() {
-	expected := `k8s:io.cilium.k8s.policy.cluster=default
-k8s:io.kubernetes.pod.namespace=test
-k8s:group=test
-k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name=test
-k8s:io.cilium.k8s.policy.serviceaccount=default
+	expected := `k8s:io.cilium.k8s.policy.cluster: default
+k8s:io.kubernetes.pod.namespace: test
+k8s:group: test
+k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
+k8s:io.cilium.k8s.policy.serviceaccount: default
 k8s:test
 ├── l3-egress-explicit-deny-all
-│   └── l3-egress-explicit-deny-all
+│   └── [Pod] l3-egress-explicit-deny-all
 ├── l3-egress-implicit-deny-all
-│   └── l3-egress-implicit-deny-all
+│   └── [Pod] l3-egress-implicit-deny-all
 ├── l3-ingress-explicit-allow-all
-│   ├── l3-ingress-explicit-allow-all
-│   └── l3-ingress-explicit-allow-all
+│   ├── [Pod] l3-ingress-explicit-allow-all
+│   └── [Pod] l3-ingress-explicit-allow-all
 ├── l3-ingress-explicit-deny-all
-│   └── l3-ingress-explicit-deny-all
+│   └── [Pod] l3-ingress-explicit-deny-all
 ├── l3-ingress-implicit-deny-all
-│   └── l3-ingress-implicit-deny-all
+│   └── [Pod] l3-ingress-implicit-deny-all
 ├── l4-egress-explicit-deny-any
-│   └── l4-egress-explicit-deny-any
+│   └── [Pod] l4-egress-explicit-deny-any
 ├── l4-egress-explicit-deny-tcp
-│   └── l4-egress-explicit-deny-tcp
+│   └── [Pod] l4-egress-explicit-deny-tcp
 ├── l4-ingress-all-allow-tcp
-│   └── l4-ingress-all-allow-tcp
+│   └── [Pod] l4-ingress-all-allow-tcp
 ├── l4-ingress-explicit-allow-any
-│   └── l4-ingress-explicit-allow-any
+│   └── [Pod] l4-ingress-explicit-allow-any
 ├── l4-ingress-explicit-allow-tcp
-│   └── l4-ingress-explicit-allow-tcp
+│   └── [Pod] l4-ingress-explicit-allow-tcp
 ├── l4-ingress-explicit-deny-any
-│   └── l4-ingress-explicit-deny-any
+│   └── [Pod] l4-ingress-explicit-deny-any
 ├── l4-ingress-explicit-deny-udp
-│   └── l4-ingress-explicit-deny-udp
+│   └── [Pod] l4-ingress-explicit-deny-udp
 └── self
-    ├── self
-    └── self
+    ├── [Pod] self
+    └── [Pod] self
 `
 
 	It("should show id tree", func() {
