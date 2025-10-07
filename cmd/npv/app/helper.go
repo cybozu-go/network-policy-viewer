@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	"golang.org/x/term"
 )
 
 var privateCIDRs []*net.IPNet
@@ -100,6 +103,13 @@ func computeAverage(bytes, count int) float64 {
 		return 0
 	}
 	return float64(bytes) / float64(count)
+}
+
+func colored(color int, text string) string {
+	if color != 0 && term.IsTerminal(int(os.Stdout.Fd())) {
+		return fmt.Sprintf("\x1b[1;%dm"+"%s"+"\x1b[0m", color, text)
+	}
+	return text
 }
 
 func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {

@@ -132,6 +132,11 @@ func findPrimaryKey(labelMap map[string][]string) (key string, cardinality int) 
 
 // ref. https://github.com/cybozu-go/accurate/blob/main/cmd/kubectl-accurate/sub/list.go
 func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[int][]*unstructured.Unstructured, prefix string) error {
+	const (
+		KeyColor   = 0
+		ValueColor = 32
+		PodColor   = 90
+	)
 	cleanup := func(li []idTreeEntry, key string) {
 		for _, e := range li {
 			delete(e.labels, key)
@@ -150,9 +155,9 @@ func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[int][]*unstr
 		for i, ep := range eps {
 			isLast := i == len(eps)-1
 			if !isLast {
-				fmt.Println(prefix + "├── " + ep)
+				fmt.Println(prefix + "├── " + colored(PodColor, "[Pod] ") + ep)
 			} else {
-				fmt.Println(prefix + "└── " + ep)
+				fmt.Println(prefix + "└── " + colored(PodColor, "[Pod] ") + ep)
 			}
 		}
 		return nil
@@ -162,11 +167,11 @@ func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[int][]*unstr
 
 	switch cardinality {
 	case 1:
-		fmt.Println(prefix + key + "=" + labelMap[key][0])
+		fmt.Println(prefix + colored(KeyColor, key) + ": " + colored(ValueColor, labelMap[key][0]))
 		cleanup(entries, key)
 		walkIdTree(w, entries, idEndpoints, prefix)
 	default:
-		fmt.Println(prefix + key)
+		fmt.Println(prefix + colored(KeyColor, key))
 		values := labelMap[key]
 
 		for i, v := range values {
@@ -182,11 +187,11 @@ func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[int][]*unstr
 
 			isLast := i == len(values)-1
 			if !isLast {
-				fmt.Println(prefix + "├── " + v)
+				fmt.Println(prefix + "├── " + colored(ValueColor, v))
 				cleanup(children, key)
 				walkIdTree(w, children, idEndpoints, prefix+"│   ")
 			} else {
-				fmt.Println(prefix + "└── " + v)
+				fmt.Println(prefix + "└── " + colored(ValueColor, v))
 				cleanup(children, key)
 				walkIdTree(w, children, idEndpoints, prefix+"    ")
 			}
