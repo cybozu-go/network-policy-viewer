@@ -30,7 +30,7 @@ var idTreeCmd = &cobra.Command{
 }
 
 type idTreeEntry struct {
-	identity int
+	identity uint32
 	labels   map[string]string
 }
 
@@ -52,7 +52,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		e.identity = id
+		e.identity = uint32(id)
 
 		labels, ok, err := unstructured.NestedStringMap(item.Object, "security-labels")
 		if err != nil {
@@ -131,7 +131,7 @@ func findPrimaryKey(labelMap map[string][]string) (key string, cardinality int) 
 }
 
 // ref. https://github.com/cybozu-go/accurate/blob/main/cmd/kubectl-accurate/sub/list.go
-func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[int][]*unstructured.Unstructured, prefix string) error {
+func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[uint32][]*unstructured.Unstructured, prefix string) error {
 	const (
 		KeyColor   = 0
 		ValueColor = 32
