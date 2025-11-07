@@ -11,7 +11,7 @@ jobs:
     name: Release network-policy-viewer
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
       - name: Validate inputs
@@ -41,7 +41,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/cybozu-go/cilium-agent-proxy:${{ inputs.tag }}
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Build
