@@ -64,6 +64,7 @@ build-proxy: ## Build cilium-agent-proxy
 .PHONY: check-generate
 check-generate:
 	go mod tidy
+	goimports -w -local github.com/cybozu-go/network-policy-viewer .
 	git diff --exit-code --name-only
 
 .PHONY: lint
