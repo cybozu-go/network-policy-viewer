@@ -20,4 +20,4 @@ spec:
         - name: ubuntu
           args:
             - pause
-          image: ghcr.io/cybozu/ubuntu-debug:22.04
+          image: ghcr.io/cybozu/ubuntu-debug:24.04

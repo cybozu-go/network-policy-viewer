@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM ghcr.io/cybozu/golang:1.24-noble AS builder
+FROM ghcr.io/cybozu/golang:1.25-noble AS builder
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
