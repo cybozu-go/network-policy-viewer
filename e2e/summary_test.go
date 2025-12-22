@@ -26,9 +26,7 @@ self,2,1,17,8`
 
 	It("should show summary", func() {
 		result := runViewerSafe(Default, nil, "summary", "-o=json", "-n=test")
-		// remove hash suffix from pod names
-		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | split("-") | .[0:5] | join("-"))]`)
-		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | if startswith("self") then "self" else . end)]`)
+		result = fixJsonPodField(Default, result, "name")
 		result = jqSafe(Default, result, "-r", `.[] | [.name, .ingress_allow, .ingress_deny, .egress_allow, .egress_deny] | @csv`)
 		resultString := strings.Replace(string(result), `"`, "", -1)
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)

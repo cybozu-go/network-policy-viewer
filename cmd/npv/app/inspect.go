@@ -134,11 +134,7 @@ func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
-		if rootOptions.allNamespaces {
-			entry.Subject = pod.Namespace + "/" + pod.Name
-		} else {
-			entry.Subject = pod.Name
-		}
+		entry.Subject = getPodSubject(pod)
 		if p.IsDeny() {
 			entry.Policy = policyDeny
 		} else {

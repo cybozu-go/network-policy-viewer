@@ -68,6 +68,13 @@ func onePodByLabelSelector(g Gomega, namespace, selector string) string {
 	return string(jqSafe(g, data, "-r", ".items[0].metadata.name"))
 }
 
+func fixJsonPodField(g Gomega, input []byte, field string) []byte {
+	// remove hash suffix from pod names
+	input = jqSafe(g, input, "-r", fmt.Sprintf(`[.[] | .%s = (.%s | split("-") | .[0:5] | join("-"))]`, field, field))
+	input = jqSafe(g, input, "-r", fmt.Sprintf(`[.[] | .%s = (.%s | if startswith("self") then "self" else . end)]`, field, field))
+	return input
+}
+
 func makeIntersection(x, y []string) []string {
 	ret := make([]string, 0)
 	mx := make(map[string]any)

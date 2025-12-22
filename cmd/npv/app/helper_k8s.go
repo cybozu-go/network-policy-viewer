@@ -92,6 +92,14 @@ func getSubjectNamespace() string {
 	return rootOptions.namespace
 }
 
+func getPodSubject(pod *corev1.Pod) string {
+	if rootOptions.allNamespaces {
+		return pod.Namespace + "/" + pod.Name
+	} else {
+		return pod.Name
+	}
+}
+
 func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name, selector string) ([]*corev1.Pod, error) {
 	if (name != "") && (rootOptions.allNamespaces || selector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")

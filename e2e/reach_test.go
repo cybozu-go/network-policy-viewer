@@ -8,9 +8,7 @@ import (
 )
 
 func formatReachResult(result []byte) string {
-	// remove hash suffix from pod names
-	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | split("-") | .[0:5] | join("-"))]`)
-	result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | if startswith("self") then "self" else . end)]`)
+	result = fixJsonPodField(Default, result, "example_endpoint")
 	// "npv reach" returns a unstable result, so we need to sort it in test
 	result = jqSafe(Default, result, "-r", `sort_by(.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
 	result = jqSafe(Default, result, "-r", `.[] | [.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)

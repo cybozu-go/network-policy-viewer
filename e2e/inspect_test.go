@@ -210,9 +210,7 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			}
 			args = append(args, c.ExtraArgs...)
 			result := runViewerSafe(Default, nil, args...)
-			// remove hash suffix from pod names
-			result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | split("-") | .[0:5] | join("-"))]`)
-			result = jqSafe(Default, result, "-r", `[.[] | .example_endpoint = (.example_endpoint | if startswith("self") then "self" else . end)]`)
+			result = fixJsonPodField(Default, result, "example_endpoint")
 			result = jqSafe(Default, result, "-r", `.[] | [.policy, .direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 			resultString := strings.Replace(string(result), `"`, "", -1)
 			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nargs: %v\nactual: %s\nexpected: %s", c.Selector, c.ExtraArgs, resultString, c.Expected)

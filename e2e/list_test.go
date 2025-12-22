@@ -101,24 +101,21 @@ Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
 	})
 }
 
-func testListAll() {
-	expected := `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Egress,CiliumNetworkPolicy,test,l3-self
-Egress,CiliumNetworkPolicy,test,l4-self
-Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
-Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all
-Ingress,CiliumNetworkPolicy,test,l3-self
-Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-any
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-tcp
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-any
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-udp
-Ingress,CiliumNetworkPolicy,test,l4-self`
+func testListWithSelector() {
+	expected := `l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-allow-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
+l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-allow-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
+l3-ingress-explicit-deny-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-deny-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all`
 
 	It("should list applied policies for multiple pods", func() {
-		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test")
-		result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
+		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "-l=test in (l3-ingress-explicit-allow-all,l3-ingress-explicit-deny-all)")
+		result = fixJsonPodField(Default, result, "subject")
+		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.Replace(string(result), `"`, "", -1)
 		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})

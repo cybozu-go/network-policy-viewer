@@ -64,4 +64,5 @@ spec:
         - name: ubuntu
           args:
             - pause
-          image: ghcr.io/cybozu/ubuntu:24.04
+          # ubuntu-debug is necessary to use bash completion
+          image: ghcr.io/cybozu/ubuntu-debug:24.04
