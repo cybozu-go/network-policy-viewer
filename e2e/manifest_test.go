@@ -139,9 +139,7 @@ To,test,l3-ingress-explicit-allow-all`
 		from := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
 		to := "--to=test/" + onePodByLabelSelector(Default, "test", "test=l3-ingress-explicit-allow-all")
 		result := runViewerSafe(Default, nil, "manifest", "range", from, to, "-o=json")
-		// remove hash suffix from pod names
-		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | split("-") | .[0:5] | join("-"))]`)
-		result = jqSafe(Default, result, "-r", `[.[] | .name = (.name | if startswith("self") then "self" else . end)]`)
+		result = fixJsonPodField(Default, result, "name")
 		result = jqSafe(Default, result, "-r", `.[] | [.part, .namespace, .name] | @csv`)
 		resultString := strings.Replace(string(result), `"`, "", -1)
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)

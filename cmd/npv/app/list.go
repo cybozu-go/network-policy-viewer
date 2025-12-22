@@ -48,6 +48,7 @@ var listCmd = &cobra.Command{
 }
 
 type derivedFromEntry struct {
+	Subject   string `json:"subject"`
 	Direction string `json:"direction"`
 	Kind      string `json:"kind"`
 	Namespace string `json:"namespace"`
@@ -55,7 +56,10 @@ type derivedFromEntry struct {
 }
 
 func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
-	ret := strings.Compare(x.Direction, y.Direction)
+	ret := strings.Compare(x.Subject, y.Subject)
+	if ret == 0 {
+		ret = strings.Compare(x.Direction, y.Direction)
+	}
 	if ret == 0 {
 		ret = strings.Compare(x.Kind, y.Kind)
 	}
@@ -68,8 +72,9 @@ func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
 	return ret < 0
 }
 
-func parseDerivedFromEntry(input []string, direction string) derivedFromEntry {
+func parseDerivedFromEntry(subject, direction string, input []string) derivedFromEntry {
 	val := derivedFromEntry{
+		Subject:   subject,
 		Direction: direction,
 		Namespace: "-",
 	}
@@ -120,7 +125,7 @@ func runListOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicC
 	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
 	for _, rule := range ingressRules {
 		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(r, directionIngress)
+			entry := parseDerivedFromEntry(getPodSubject(pod), directionIngress, r)
 			policySet[entry] = struct{}{}
 		}
 	}
@@ -128,7 +133,7 @@ func runListOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicC
 	egressRules := response.Payload.Status.Policy.Realized.L4.Egress
 	for _, rule := range egressRules {
 		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(r, directionEgress)
+			entry := parseDerivedFromEntry(getPodSubject(pod), directionEgress, r)
 			policySet[entry] = struct{}{}
 		}
 	}
@@ -167,9 +172,19 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return listPolicyManifests(ctx, stdout, dynamicClient, policyList)
 	}
 
-	return writeSimpleOrJson(stdout, policyList, []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}, len(policyList), func(index int) []any {
+	subHeader := []string{"SUBJECT", "|"}
+	header := []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}
+	if name == "" {
+		header = append(subHeader, header...)
+	}
+	return writeSimpleOrJson(stdout, policyList, header, len(policyList), func(index int) []any {
 		p := policyList[index]
-		return []any{p.Direction, p.Kind, p.Namespace, p.Name}
+		subValues := []any{p.Subject, "|"}
+		values := []any{p.Direction, p.Kind, p.Namespace, p.Name}
+		if name == "" {
+			values = append(subValues, values...)
+		}
+		return values
 	})
 }
 
