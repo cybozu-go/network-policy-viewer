@@ -43,6 +43,8 @@ func processTestTraffic() {
 }
 
 func runTest() {
+	Context("agent-node", testAgentNode)
+	Context("agent-pod", testAgentPod)
 	Context("dump", testDump)
 	Context("list", testList)
 	Context("list-all", testListAll)

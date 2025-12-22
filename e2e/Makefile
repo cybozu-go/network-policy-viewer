@@ -19,8 +19,8 @@ help: ## Display this help
 
 .PHONY: wait-for-workloads
 wait-for-workloads:
-	kubectl wait --for=condition=Available --all deployments --all-namespaces --timeout=1h
-	kubectl wait --for=condition=Ready --all pods --all-namespaces --timeout=1h
+	kubectl wait --for=condition=Available --all deployments --all-namespaces --timeout=10m
+	kubectl wait --for=condition=Ready --all pods --all-namespaces --timeout=10m
 
 .PHONY: start
 start:
@@ -29,6 +29,7 @@ start:
 	kind load docker-image quay.io/cilium/cilium:v$(CILIUM_VERSION)
 	$(HELM) install cilium cilium/cilium --version $(CILIUM_VERSION) \
 		--namespace kube-system \
+		--set envoy.enabled=false \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
 
