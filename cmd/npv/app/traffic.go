@@ -20,12 +20,16 @@ import (
 )
 
 var trafficOptions struct {
+	ingress       bool
+	egress        bool
 	unifyExternal bool
 }
 
 func init() {
 	addSelectorOption(trafficCmd)
 	addWithCIDROptions(trafficCmd)
+	trafficCmd.Flags().BoolVar(&trafficOptions.ingress, "ingress", false, "show ingress-rules only")
+	trafficCmd.Flags().BoolVar(&trafficOptions.egress, "egress", false, "show egress-rules only")
 	trafficCmd.Flags().BoolVar(&trafficOptions.unifyExternal, "unify-external", false, "unify cluster-external traffic into public, private, and unknown")
 	rootCmd.AddCommand(trafficCmd)
 }
@@ -82,6 +86,13 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 	return ret < 0
 }
 
+func parseTrafficOptions() {
+	if !trafficOptions.ingress && !trafficOptions.egress {
+		trafficOptions.ingress = true
+		trafficOptions.egress = true
+	}
+}
+
 func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) (map[trafficKey]*trafficValue, error) {
 	traffic := make(map[trafficKey]*trafficValue)
 
@@ -104,10 +115,6 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 	}
 
 	for _, p := range policies {
-		if (p.Packets == 0) || p.IsDeny() {
-			continue
-		}
-
 		var k trafficKey
 		if p.IsEgress() {
 			k.Direction = directionEgress
@@ -196,10 +203,19 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 }
 
 func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	filter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
+	parseTrafficOptions()
+	basicFilter := makeBasicFilter(
+		trafficOptions.ingress, trafficOptions.egress,
+		true,  // allowed
+		false, // denied
+		true,  // used
+		false, // unused
+	)
+	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {
 		return err
 	}
+	filter := makeAllFilter(basicFilter, withFilter)
 
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {

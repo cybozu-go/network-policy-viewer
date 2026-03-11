@@ -87,6 +87,18 @@ Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 				Args:     []string{"-l=test=self", "--with-cidrs=0.0.0.0/0", "--unify-external"},
 				Expected: `Egress,public,cidr:public,false,false,17,53`,
 			},
+			{
+				Args: []string{"--egress"},
+				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
+Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
+Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53
+Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+			},
+			{
+				Args: []string{"--ingress"},
+				Expected: `Ingress,,self,false,false,6,8000
+Ingress,,self,true,true,0,0`,
+			},
 		}
 		for _, c := range cases {
 			args := append([]string{"traffic", "-o=json", "-n=test"}, c.Args...)
