@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +20,7 @@ import (
 )
 
 var (
+	k8sMutex                sync.Mutex
 	cachedIdentities        map[uint32]*unstructured.Unstructured
 	cachedIdentityEndpoints map[uint32][]*unstructured.Unstructured
 	cachedIdentityExample   = make(map[uint32]*unstructured.Unstructured)
@@ -201,6 +203,9 @@ func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[ui
 // key: identity number
 // value: CiliumEndpoint
 func getIdentityExample(ctx context.Context, d *dynamic.DynamicClient, id uint32) (*unstructured.Unstructured, error) {
+	k8sMutex.Lock()
+	defer k8sMutex.Unlock()
+
 	if cached, ok := cachedIdentityExample[id]; ok {
 		return cached, nil
 	}

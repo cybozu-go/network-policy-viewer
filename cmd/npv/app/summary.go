@@ -82,14 +82,21 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	for _, p := range pods {
-		entry, err := runSummaryOnPod(ctx, clientset, dynamicClient, p)
-		if err != nil {
-			fmt.Fprintf(stderr, "* %v\n", err)
-			continue
-		}
-		summary = append(summary, entry)
-	}
+	mapNodeReduce(pods,
+		func(pod *corev1.Pod) *summaryEntry {
+			entry, err := runSummaryOnPod(ctx, clientset, dynamicClient, pod)
+			if err != nil {
+				fmt.Fprintf(stderr, "* %v\n", err)
+				return nil
+			}
+			return &entry
+		},
+		func(result *summaryEntry) {
+			if result != nil {
+				summary = append(summary, *result)
+			}
+		},
+	)
 	sort.Slice(summary, func(i, j int) bool { return lessSummaryEntry(&summary[i], &summary[j]) })
 
 	header := []string{"NAMESPACE", "NAME", "INGRESS-ALLOW", "INGRESS-DENY", "EGRESS-ALLOW", "EGRESS-DENY"}

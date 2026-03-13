@@ -23,6 +23,7 @@ var rootOptions struct {
 	output         string
 	noHeaders      bool
 	units          bool
+	jobs           int
 }
 
 type cidrOptions struct {
@@ -50,6 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&rootOptions.output, "output", "o", OutputSimple, "output format")
 	rootCmd.PersistentFlags().BoolVar(&rootOptions.noHeaders, "no-headers", false, "stop printing header")
 	rootCmd.PersistentFlags().BoolVarP(&rootOptions.units, "units", "u", false, "use human-readable units (power of 1024) for traffic volume")
+	rootCmd.PersistentFlags().IntVarP(&rootOptions.jobs, "jobs", "j", 4, "number of parallel queries")
 	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
 	rootCmd.RegisterFlagCompletionFunc("node", completeNodes)
 }
