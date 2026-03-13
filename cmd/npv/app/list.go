@@ -154,16 +154,21 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 
 	// The same rule appears multiple times in the response, so we need to dedup it
 	policySet := make(map[derivedFromEntry]any)
-	for _, pod := range pods {
-		policy, err := runListOnPod(ctx, clientset, dynamicClient, pod)
-		if err != nil {
-			fmt.Fprintf(stderr, "* %v\n", err)
-			continue
-		}
-		for k := range policy {
-			policySet[k] = struct{}{}
-		}
-	}
+	mapNodeReduce(pods,
+		func(pod *corev1.Pod) map[derivedFromEntry]any {
+			policy, err := runListOnPod(ctx, clientset, dynamicClient, pod)
+			if err != nil {
+				fmt.Fprintf(stderr, "* %v\n", err)
+				return nil
+			}
+			return policy
+		},
+		func(result map[derivedFromEntry]any) {
+			for k := range result {
+				policySet[k] = struct{}{}
+			}
+		},
+	)
 
 	policyList := maps.Keys(policySet)
 	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })

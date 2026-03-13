@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/pkg/client"
@@ -19,12 +20,14 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
 var (
+	proxyMutex          sync.Mutex
 	cachedCiliumClients = make(map[string]*client.Client)
 	cachedLocalIdentity = make(map[*client.Client]map[uint32]*policy.GetIdentityIDOK)
 )
@@ -53,6 +56,9 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 }
 
 func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*client.Client, error) {
+	proxyMutex.Lock()
+	defer proxyMutex.Unlock()
+
 	endpoint, err := getProxyEndpoint(ctx, clientset, namespace, name)
 	if err != nil {
 		return nil, err
@@ -72,6 +78,9 @@ func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, na
 }
 
 func queryLocalIdentity(ctx context.Context, client *client.Client, id uint32) (*policy.GetIdentityIDOK, error) {
+	proxyMutex.Lock()
+	defer proxyMutex.Unlock()
+
 	if _, ok := cachedLocalIdentity[client]; !ok {
 		cachedLocalIdentity[client] = make(map[uint32]*policy.GetIdentityIDOK)
 	}
@@ -300,4 +309,53 @@ func filterPolicyMap(ctx context.Context, client *client.Client, policies []poli
 		return nil, err
 	}
 	return policies, nil
+}
+
+func mapNodeReduce[T any](pods []*corev1.Pod, mapFunc func(*corev1.Pod) T, reduceFunc func(T)) {
+	var pickMutex, reduceMutex sync.Mutex
+	nodes := make(map[string]bool)
+	pods = slices.Clone(pods)
+
+	for _, p := range pods {
+		nodes[p.Spec.NodeName] = false
+	}
+	pick := func() (*corev1.Pod, bool) {
+		pickMutex.Lock()
+		defer pickMutex.Unlock()
+		for _, p := range pods {
+			if !nodes[p.Spec.NodeName] {
+				nodes[p.Spec.NodeName] = true
+				return p, true
+			}
+		}
+		return nil, false
+	}
+	release := func(p *corev1.Pod) {
+		pickMutex.Lock()
+		defer pickMutex.Unlock()
+		if !nodes[p.Spec.NodeName] {
+			panic("internal error")
+		}
+		nodes[p.Spec.NodeName] = false
+		pods = slices.DeleteFunc(pods, func(pp *corev1.Pod) bool { return p == pp })
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < min(rootOptions.jobs, len(pods), len(nodes)); i++ {
+		wg.Go(func() {
+			for {
+				p, found := pick()
+				if !found {
+					return
+				}
+				value := mapFunc(p)
+				release(p)
+
+				reduceMutex.Lock()
+				reduceFunc(value)
+				reduceMutex.Unlock()
+			}
+		})
+	}
+	wg.Wait()
 }

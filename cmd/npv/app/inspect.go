@@ -189,8 +189,6 @@ func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 		entry.Requests = p.Packets
 		arr[i] = entry
 	}
-
-	sort.Slice(arr, func(i, j int) bool { return lessInspectEntry(&arr[i], &arr[j]) })
 	return arr, nil
 }
 
@@ -218,14 +216,22 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	}
 
 	arr := make([]inspectEntry, 0)
-	for _, pod := range pods {
-		result, err := runInspectOnPod(ctx, clientset, dynamicClient, filter, pod)
-		if err != nil {
-			fmt.Fprintf(stderr, "* %v\n", err)
-			continue
-		}
-		arr = append(arr, result...)
-	}
+	mapNodeReduce(pods,
+		func(pod *corev1.Pod) []inspectEntry {
+			result, err := runInspectOnPod(ctx, clientset, dynamicClient, filter, pod)
+			if err != nil {
+				fmt.Fprintf(stderr, "* %v\n", err)
+				return nil
+			}
+			return result
+		},
+		func(result []inspectEntry) {
+			if result != nil {
+				arr = append(arr, result...)
+			}
+		},
+	)
+	sort.Slice(arr, func(i, j int) bool { return lessInspectEntry(&arr[i], &arr[j]) })
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
