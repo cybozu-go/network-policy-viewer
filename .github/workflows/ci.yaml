@@ -10,17 +10,17 @@ jobs:
     runs-on:
       group: network-policy-viewer
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Cache tools
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bin/download
           key: cache-tools-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
       - name: Cache files
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: cache
           key: cache-files-go-${{ hashFiles('go.mod') }}-${{ hashFiles('Makefile') }}
@@ -34,15 +34,15 @@ jobs:
       - name: Run lint
         run: make lint
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build cilium-agent-proxy
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
