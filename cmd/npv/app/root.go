@@ -4,13 +4,28 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 const (
 	OutputJson   = "json"
 	OutputSimple = "simple"
+)
+
+const (
+	flagNamespace      = "namespace"
+	flagAllNamespaces  = "all-namespaces"
+	flagNode           = "node"
+	flagProxyNamespace = "proxy-namespace"
+	flagProxySelector  = "proxy-selector"
+	flagProxyPort      = "proxy-port"
+	flagOutput         = "output"
+	flagNoHeaders      = "no-headers"
+	flagUnits          = "units"
+	flagJobs           = "jobs"
 )
 
 var rootOptions struct {
@@ -42,18 +57,23 @@ var commonOptions struct {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&rootOptions.namespace, "namespace", "n", "default", "namespace of pods")
-	rootCmd.PersistentFlags().BoolVarP(&rootOptions.allNamespaces, "all-namespaces", "A", false, "show pods across all namespaces")
-	rootCmd.PersistentFlags().StringVar(&rootOptions.node, "node", "", "node of pods. It turns on -A (--all-namespaces).")
-	rootCmd.PersistentFlags().StringVar(&rootOptions.proxyNamespace, "proxy-namespace", "cilium-agent-proxy", "namespace of the proxy pods")
-	rootCmd.PersistentFlags().StringVar(&rootOptions.proxySelector, "proxy-selector", "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
-	rootCmd.PersistentFlags().Uint16Var(&rootOptions.proxyPort, "proxy-port", 8080, "port number of the proxy endpoints")
-	rootCmd.PersistentFlags().StringVarP(&rootOptions.output, "output", "o", OutputSimple, "output format")
-	rootCmd.PersistentFlags().BoolVar(&rootOptions.noHeaders, "no-headers", false, "stop printing header")
-	rootCmd.PersistentFlags().BoolVarP(&rootOptions.units, "units", "u", false, "use human-readable units (power of 1024) for traffic volume")
-	rootCmd.PersistentFlags().IntVarP(&rootOptions.jobs, "jobs", "j", 4, "number of parallel queries")
-	rootCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
-	rootCmd.RegisterFlagCompletionFunc("node", completeNodes)
+	rootCmd.PersistentFlags().StringP(flagNamespace, "n", "default", "namespace of pods")
+	rootCmd.PersistentFlags().BoolP(flagAllNamespaces, "A", false, "show pods across all namespaces")
+	rootCmd.PersistentFlags().String(flagNode, "", "node of pods. It turns on -A (--all-namespaces).")
+	rootCmd.PersistentFlags().String(flagProxyNamespace, "cilium-agent-proxy", "namespace of the proxy pods")
+	rootCmd.PersistentFlags().String(flagProxySelector, "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
+	rootCmd.PersistentFlags().Uint16(flagProxyPort, 8080, "port number of the proxy endpoints")
+	rootCmd.PersistentFlags().StringP(flagOutput, "o", OutputSimple, "output format")
+	rootCmd.PersistentFlags().Bool(flagNoHeaders, false, "stop printing header")
+	rootCmd.PersistentFlags().BoolP(flagUnits, "u", false, "use human-readable units (power of 1024) for traffic volume")
+	rootCmd.PersistentFlags().IntP(flagJobs, "j", 4, "number of parallel queries")
+	rootCmd.RegisterFlagCompletionFunc(flagNamespace, completeNamespaces)
+	rootCmd.RegisterFlagCompletionFunc(flagNode, completeNodes)
+
+	viper.BindPFlags(rootCmd.PersistentFlags())
+	viper.SetEnvPrefix("npv")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
 }
 
 func addSelectorOption(cmd *cobra.Command) {
@@ -98,10 +118,21 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 var rootCmd = &cobra.Command{
 	Use: "npv",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		rootOptions.namespace = viper.GetString(flagNamespace)
+		rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
+		rootOptions.node = viper.GetString(flagNode)
+		rootOptions.proxyNamespace = viper.GetString(flagProxyNamespace)
+		rootOptions.proxySelector = viper.GetString(flagProxySelector)
+		rootOptions.proxyPort = viper.GetUint16(flagProxyPort)
+		rootOptions.output = viper.GetString(flagOutput)
+		rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
+		rootOptions.units = viper.GetBool(flagUnits)
+		rootOptions.jobs = viper.GetInt(flagJobs)
+
 		if rootOptions.node != "" {
 			rootOptions.allNamespaces = true
 		}
-		if rootOptions.allNamespaces && cmd.Flags().Changed("namespace") {
+		if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
 			return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
 		}
 		return nil
