@@ -7,6 +7,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/viper v1.19.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/term v0.41.0
 	k8s.io/api v0.35.2
@@ -87,7 +88,6 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/spf13/viper v1.19.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vishvananda/netlink v1.3.1-0.20241022031324-976bd8de7d81 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
