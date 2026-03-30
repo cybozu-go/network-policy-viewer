@@ -11,6 +11,9 @@ import (
 func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
 	ret = make([]string, 0)
 	directive = cobra.ShellCompDirectiveNoFileComp
+	if err := fillRootOptions(cmd); err != nil {
+		return
+	}
 
 	clientset, _, err := createK8sClients()
 	if err != nil {
@@ -31,6 +34,9 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (r
 func completeNodes(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
 	ret = make([]string, 0)
 	directive = cobra.ShellCompDirectiveNoFileComp
+	if err := fillRootOptions(cmd); err != nil {
+		return
+	}
 
 	clientset, _, err := createK8sClients()
 	if err != nil {
@@ -51,6 +57,9 @@ func completeNodes(cmd *cobra.Command, args []string, toComplete string) (ret []
 func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
 	ret = make([]string, 0)
 	directive = cobra.ShellCompDirectiveNoFileComp
+	if err := fillRootOptions(cmd); err != nil {
+		return
+	}
 
 	clientset, _, err := createK8sClients()
 	if err != nil {
@@ -71,6 +80,9 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
 	ret = make([]string, 0)
 	directive = cobra.ShellCompDirectiveNoFileComp
+	if err := fillRootOptions(cmd); err != nil {
+		return
+	}
 
 	clientset, _, err := createK8sClients()
 	if err != nil {

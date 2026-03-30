@@ -41,6 +41,27 @@ var rootOptions struct {
 	jobs           int
 }
 
+func fillRootOptions(cmd *cobra.Command) error {
+	rootOptions.namespace = viper.GetString(flagNamespace)
+	rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
+	rootOptions.node = viper.GetString(flagNode)
+	rootOptions.proxyNamespace = viper.GetString(flagProxyNamespace)
+	rootOptions.proxySelector = viper.GetString(flagProxySelector)
+	rootOptions.proxyPort = viper.GetUint16(flagProxyPort)
+	rootOptions.output = viper.GetString(flagOutput)
+	rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
+	rootOptions.units = viper.GetBool(flagUnits)
+	rootOptions.jobs = viper.GetInt(flagJobs)
+
+	if rootOptions.node != "" {
+		rootOptions.allNamespaces = true
+	}
+	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
+		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
+	}
+	return nil
+}
+
 type cidrOptions struct {
 	cidrs        string
 	privateCIDRs bool
@@ -118,24 +139,7 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 var rootCmd = &cobra.Command{
 	Use: "npv",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		rootOptions.namespace = viper.GetString(flagNamespace)
-		rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
-		rootOptions.node = viper.GetString(flagNode)
-		rootOptions.proxyNamespace = viper.GetString(flagProxyNamespace)
-		rootOptions.proxySelector = viper.GetString(flagProxySelector)
-		rootOptions.proxyPort = viper.GetUint16(flagProxyPort)
-		rootOptions.output = viper.GetString(flagOutput)
-		rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
-		rootOptions.units = viper.GetBool(flagUnits)
-		rootOptions.jobs = viper.GetInt(flagJobs)
-
-		if rootOptions.node != "" {
-			rootOptions.allNamespaces = true
-		}
-		if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
-			return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
-		}
-		return nil
+		return fillRootOptions(cmd)
 	},
 }
 
