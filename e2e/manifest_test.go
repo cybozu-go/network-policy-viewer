@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,14 +25,16 @@ spec:
   - toEndpoints:
     - matchLabels:
         k8s:group: test
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
+        k8s:io.cilium.k8s.namespace.labels.group: test
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:io.cilium.k8s.policy.cluster: default
         k8s:io.cilium.k8s.policy.serviceaccount: default
-        k8s:io.kubernetes.pod.namespace: test
+        k8s:io.kubernetes.pod.namespace: test-l3
         k8s:test: l3-ingress-explicit-allow-all
   endpointSelector:
     matchLabels:
       k8s:group: test
+      k8s:io.cilium.k8s.namespace.labels.group: test
       k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
       k8s:io.cilium.k8s.policy.cluster: default
       k8s:io.cilium.k8s.policy.serviceaccount: default
@@ -50,14 +53,16 @@ spec:
   - toEndpoints:
     - matchLabels:
         k8s:group: test
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
+        k8s:io.cilium.k8s.namespace.labels.group: test
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:io.cilium.k8s.policy.cluster: default
         k8s:io.cilium.k8s.policy.serviceaccount: default
-        k8s:io.kubernetes.pod.namespace: test
+        k8s:io.kubernetes.pod.namespace: test-l3
         k8s:test: l3-ingress-explicit-allow-all
   endpointSelector:
     matchLabels:
       k8s:group: test
+      k8s:io.cilium.k8s.namespace.labels.group: test
       k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
       k8s:io.cilium.k8s.policy.cluster: default
       k8s:io.cilium.k8s.policy.serviceaccount: default
@@ -70,20 +75,22 @@ spec:
 kind: CiliumNetworkPolicy
 metadata:
   name: testrule
-  namespace: test
+  namespace: test-l3
 spec:
   endpointSelector:
     matchLabels:
       k8s:group: test
-      k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
+      k8s:io.cilium.k8s.namespace.labels.group: test
+      k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
       k8s:io.cilium.k8s.policy.cluster: default
       k8s:io.cilium.k8s.policy.serviceaccount: default
-      k8s:io.kubernetes.pod.namespace: test
+      k8s:io.kubernetes.pod.namespace: test-l3
       k8s:test: l3-ingress-explicit-allow-all
   ingress:
   - fromEndpoints:
     - matchLabels:
         k8s:group: test
+        k8s:io.cilium.k8s.namespace.labels.group: test
         k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
         k8s:io.cilium.k8s.policy.cluster: default
         k8s:io.cilium.k8s.policy.serviceaccount: default
@@ -96,20 +103,22 @@ spec:
 kind: CiliumNetworkPolicy
 metadata:
   name: testrule
-  namespace: test
+  namespace: test-l3
 spec:
   endpointSelector:
     matchLabels:
       k8s:group: test
-      k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
+      k8s:io.cilium.k8s.namespace.labels.group: test
+      k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
       k8s:io.cilium.k8s.policy.cluster: default
       k8s:io.cilium.k8s.policy.serviceaccount: default
-      k8s:io.kubernetes.pod.namespace: test
+      k8s:io.kubernetes.pod.namespace: test-l3
       k8s:test: l3-ingress-explicit-allow-all
   ingressDeny:
   - fromEndpoints:
     - matchLabels:
         k8s:group: test
+        k8s:io.cilium.k8s.namespace.labels.group: test
         k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
         k8s:io.cilium.k8s.policy.cluster: default
         k8s:io.cilium.k8s.policy.serviceaccount: default
@@ -120,8 +129,9 @@ spec:
 
 	It("should generate manifests", func() {
 		from := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
-		to := "--to=test/" + onePodByLabelSelector(Default, "test", "test=l3-ingress-explicit-allow-all")
+		to := "--to=test-l3/" + onePodByLabelSelector(Default, "test-l3", "test=l3-ingress-explicit-allow-all")
 		for _, c := range cases {
+			By(fmt.Sprintf("generating %v", c.Args))
 			args := append([]string{"manifest", "generate", "--name=testrule", from, to}, c.Args...)
 			result := strings.TrimSpace(string(runViewerSafe(Default, nil, args...)))
 			Expect(result).To(Equal(c.Expected), "compare failed.\nactual: %s\nexpected: %s", result, c.Expected)
@@ -132,12 +142,12 @@ spec:
 func testManifestRange() {
 	expected := `From,test,self
 From,test,self
-To,test,l3-ingress-explicit-allow-all
-To,test,l3-ingress-explicit-allow-all`
+To,test-l3,l3-ingress-explicit-allow-all
+To,test-l3,l3-ingress-explicit-allow-all`
 
 	It("should list affected pods", func() {
 		from := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
-		to := "--to=test/" + onePodByLabelSelector(Default, "test", "test=l3-ingress-explicit-allow-all")
+		to := "--to=test-l3/" + onePodByLabelSelector(Default, "test-l3", "test=l3-ingress-explicit-allow-all")
 		result := runViewerSafe(Default, nil, "manifest", "range", from, to, "-o=json")
 		result = fixJsonPodField(Default, result, "name")
 		result = jqSafe(Default, result, "-r", `.[] | [.part, .namespace, .name] | @csv`)

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,33 +18,40 @@ func formatReachResult(result []byte) string {
 
 func testReach() {
 	cases := []struct {
-		Selector string
-		Expected string
+		Namespace string
+		Selector  string
+		Expected  string
 	}{
 		{
-			Selector: "test=l3-ingress-explicit-allow-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-allow-all",
 			Expected: `Receiver,Ingress,Allow,self,true,true,0,0
 Sender,Egress,Allow,l3-ingress-explicit-allow-all,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-ingress-implicit-deny-all",
-			Expected: `Sender,Egress,Allow,l3-ingress-implicit-deny-all,true,true,0,0`,
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-implicit-deny-all",
+			Expected:  `Sender,Egress,Allow,l3-ingress-implicit-deny-all,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-ingress-explicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-deny-all",
 			Expected: `Receiver,Ingress,Deny,self,true,true,0,0
 Sender,Egress,Allow,l3-ingress-explicit-deny-all,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-egress-implicit-deny-all",
-			Expected: ``,
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-implicit-deny-all",
+			Expected:  ``,
 		},
 		{
-			Selector: "test=l3-egress-explicit-deny-all",
-			Expected: `Sender,Egress,Deny,l3-egress-explicit-deny-all,true,true,0,0`,
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-explicit-deny-all",
+			Expected:  `Sender,Egress,Deny,l3-egress-explicit-deny-all,true,true,0,0`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-any",
 			Expected: `Receiver,Ingress,Allow,self,false,false,6,53
 Receiver,Ingress,Allow,self,false,false,17,53
 Receiver,Ingress,Allow,self,false,false,132,53
@@ -52,12 +60,14 @@ Sender,Egress,Allow,l4-ingress-explicit-allow-any,false,false,17,53
 Sender,Egress,Allow,l4-ingress-explicit-allow-any,false,false,132,53`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-tcp",
 			Expected: `Receiver,Ingress,Allow,self,false,false,6,8000
 Sender,Egress,Allow,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-any",
 			Expected: `Receiver,Ingress,Deny,self,false,false,6,53
 Receiver,Ingress,Deny,self,false,false,17,53
 Receiver,Ingress,Deny,self,false,false,132,53
@@ -66,30 +76,35 @@ Sender,Egress,Allow,l4-ingress-explicit-deny-any,false,false,17,53
 Sender,Egress,Allow,l4-ingress-explicit-deny-any,false,false,132,53`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-udp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-udp",
 			Expected: `Receiver,Ingress,Deny,self,false,false,17,161
 Sender,Egress,Allow,l4-ingress-explicit-deny-udp,false,false,17,161`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-any",
 			Expected: `Sender,Egress,Deny,l4-egress-explicit-deny-any,false,false,6,53
 Sender,Egress,Deny,l4-egress-explicit-deny-any,false,false,17,53
 Sender,Egress,Deny,l4-egress-explicit-deny-any,false,false,132,53`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-tcp",
-			Expected: `Sender,Egress,Deny,l4-egress-explicit-deny-tcp,false,false,6,8000`,
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-tcp",
+			Expected:  `Sender,Egress,Deny,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 		},
 		{
-			Selector: "test=l4-ingress-all-allow-tcp",
-			Expected: `Receiver,Ingress,Allow,reserved:unknown,false,false,6,8000`,
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-all-allow-tcp",
+			Expected:  `Receiver,Ingress,Allow,reserved:unknown,false,false,6,8000`,
 		},
 	}
 
 	It("should list traffic policy", func() {
 		for _, c := range cases {
+			By(fmt.Sprintf("checking %v %v", c.Namespace, c.Selector))
 			fromOption := "--from=test/" + onePodByLabelSelector(Default, "test", "test=self")
-			toOption := "--to=test/" + onePodByLabelSelector(Default, "test", c.Selector)
+			toOption := fmt.Sprintf("--to=%s/%s", c.Namespace, onePodByLabelSelector(Default, c.Namespace, c.Selector))
 
 			result := runViewerSafe(Default, nil, "reach", "-o=json", fromOption, toOption)
 			resultString := formatReachResult(result)

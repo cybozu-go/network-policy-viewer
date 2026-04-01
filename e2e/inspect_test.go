@@ -47,6 +47,7 @@ func testInspect() {
 	selfNames := strings.Fields(string(data))
 
 	cases := []struct {
+		Namespace string
 		Selector  string
 		ExtraArgs []string
 		Expected  string
@@ -54,67 +55,80 @@ func testInspect() {
 		// npv inspect should report result for each pod
 		// selectors are sorted alphabetically
 		{
-			Selector: "test=l3-egress-explicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-explicit-deny-all",
+			Expected:  `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-egress-implicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-implicit-deny-all",
+			Expected:  `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-ingress-explicit-allow-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-allow-all",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
 Allow,Ingress,self,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-ingress-explicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-deny-all",
 			Expected: `Deny,Ingress,self,true,true,0,0
 Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l3-ingress-implicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-implicit-deny-all",
+			Expected:  `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-any",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-any",
+			Expected:  `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-tcp",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-tcp",
+			Expected:  `Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l4-ingress-all-allow-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-all-allow-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
 Allow,Ingress,reserved:host,false,false,6,8000
 Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-any",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
 Allow,Ingress,self,false,false,6,53
 Allow,Ingress,self,false,false,17,53
 Allow,Ingress,self,false,false,132,53`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
 Allow,Ingress,self,false,false,6,8000`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-any",
 			Expected: `Deny,Ingress,self,false,false,6,53
 Deny,Ingress,self,false,false,17,53
 Deny,Ingress,self,false,false,132,53
 Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-udp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-udp",
 			Expected: `Deny,Ingress,self,false,false,17,161
 Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
-			Selector: "test=self",
+			Namespace: "test",
+			Selector:  "test=self",
 			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
 Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
 Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
@@ -147,6 +161,7 @@ Allow,Egress,l4-ingress-explicit-deny-udp,false,false,17,161`,
 		},
 		// npv inspect should handle --with-cidrs
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0"},
 			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
@@ -163,6 +178,7 @@ Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=8.8.0.0/16"},
 			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
@@ -173,6 +189,7 @@ Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=8.8.0.0/16,!8.8.8.8/32"},
 			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
@@ -180,21 +197,25 @@ Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
 Deny,Egress,cidr:8.8.4.4/32,false,false,132,53`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=10.100.0.0/12,!10.100.0.0/16"},
 			Expected:  ``,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=10.100.0.0/12,!10.100.0.0/20"},
 			Expected:  `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=10.100.0.0/16,!10.100.0.0/16"},
 			Expected:  ``,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-private-cidrs"},
 			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
@@ -202,6 +223,7 @@ Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
 Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-public-cidrs"},
 			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
@@ -217,6 +239,7 @@ Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		// npv inspect should handle --mask-cidrs
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0", "--mask-cidrs"},
 			Expected: `Deny,Ingress,cidr:private,false,false,6,8080
@@ -231,45 +254,52 @@ Allow,Egress,cidr:public,false,false,132,53`,
 		},
 		// npv inspect should handle reserved:unknown
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			ExtraArgs: []string{"--with-cidrs=10.0.0.0/8"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			ExtraArgs: []string{"--with-public-cidrs"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			ExtraArgs: []string{"--with-private-cidrs"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		// npv inspect should handle --used
 		{
+			Namespace: "test-l3",
 			Selector:  "test=l3-ingress-explicit-allow-all",
 			ExtraArgs: []string{"--used"},
 			Expected:  `Allow,Ingress,self,true,true,0,0`,
 		},
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-explicit-allow-tcp",
 			ExtraArgs: []string{"--used"},
 			Expected:  `Allow,Ingress,self,false,false,6,8000`,
 		},
 		// npv inspect should handle --unused
 		{
+			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-explicit-deny-udp",
 			ExtraArgs: []string{"--denied", "--unused"},
 			Expected:  `Deny,Ingress,self,false,false,17,161`,
 		},
 		// npv inspect should handle --used without pod name
 		{
-			ExtraArgs: []string{"--used"},
+			ExtraArgs: []string{"-N=group=test", "--used"},
 			Expected: `Allow,Ingress,self,true,true,0,0
 Allow,Ingress,self,false,false,6,8000
 Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
@@ -282,6 +312,7 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		// npv inspect should handle --ingress and --egress
 		// npv inspect should handle --allowed and --denied
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--ingress", "--allowed"},
 			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
@@ -289,6 +320,7 @@ Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0
 Allow,Ingress,reserved:host,true,true,0,0`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--egress", "--denied"},
 			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
@@ -300,21 +332,32 @@ Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
 Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 		},
-		// npv inspect should handle --group ns (TBD)
-		// npv inspect should handle --group all
+		// npv inspect should handle --group ns
 		{
+			Namespace: "test",
 			ExtraArgs: []string{selfNames[0], "--used"},
 			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		},
 		{
+			Namespace: "test",
 			ExtraArgs: []string{selfNames[1], "--used"},
 			Expected: `Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		},
 		{
+			Namespace: "test",
+			ExtraArgs: []string{"-l=test=self", "--used", "--group=ns"},
+			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
+Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
+Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
+		},
+		// npv inspect should handle --group all
+		{
+			Namespace: "test",
 			ExtraArgs: []string{"-l=test=self", "--used", "--group=all"},
 			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
@@ -326,9 +369,12 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 	It("should inspect policy configuration", func() {
 		for _, c := range cases {
 			By(fmt.Sprintf("inspecting %v %v", c.Selector, c.ExtraArgs))
-			args := []string{"inspect", "-o=json", "-n=test"}
+			args := []string{"inspect", "-o=json"}
+			if c.Namespace != "" {
+				args = append(args, "-n="+c.Namespace)
+			}
 			if c.Selector != "" {
-				podName := onePodByLabelSelector(Default, "test", c.Selector)
+				podName := onePodByLabelSelector(Default, c.Namespace, c.Selector)
 				args = append(args, podName)
 			}
 			args = append(args, c.ExtraArgs...)

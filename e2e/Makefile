@@ -49,6 +49,7 @@ run-test-pod-%:
 	@# https://github.com/orgs/aquaproj/discussions/2964
 	@echo Hello | yq > /dev/null
 	cat testdata/template/testhttpd.yaml | \
+		yq '.metadata.namespace = "$(NAMESPACE)"' | \
 		yq '.metadata.name = "$*"' | \
 		yq '.spec.replicas = $(DEPLOYMENT_REPLICAS)' | \
 		yq '.spec.selector.matchLabels = {"test": "$*"}' | \
@@ -68,25 +69,25 @@ run-ubuntu-pod-%:
 .PHONY: install-test-pod
 install-test-pod:
 	$(MAKE) --no-print-directory run-ubuntu-pod-self
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-allow-all
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-implicit-deny-all
-	$(MAKE) --no-print-directory run-test-pod-l3-ingress-explicit-deny-all
-	$(MAKE) --no-print-directory run-test-pod-l3-egress-implicit-deny-all
-	$(MAKE) --no-print-directory run-test-pod-l3-egress-explicit-deny-all
+	$(MAKE) --no-print-directory NAMESPACE=test-l3 run-test-pod-l3-ingress-explicit-allow-all
+	$(MAKE) --no-print-directory NAMESPACE=test-l3 run-test-pod-l3-ingress-implicit-deny-all
+	$(MAKE) --no-print-directory NAMESPACE=test-l3 run-test-pod-l3-ingress-explicit-deny-all
+	$(MAKE) --no-print-directory NAMESPACE=test-l3 run-test-pod-l3-egress-implicit-deny-all
+	$(MAKE) --no-print-directory NAMESPACE=test-l3 run-test-pod-l3-egress-explicit-deny-all
 
-	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-any
-	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-allow-tcp
-	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-deny-any
-	$(MAKE) --no-print-directory run-test-pod-l4-ingress-explicit-deny-udp
-	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-any
-	$(MAKE) --no-print-directory run-test-pod-l4-egress-explicit-deny-tcp
-	$(MAKE) --no-print-directory run-test-pod-l4-ingress-all-allow-tcp
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-ingress-explicit-allow-any
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-ingress-explicit-allow-tcp
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-ingress-explicit-deny-any
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-ingress-explicit-deny-udp
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-egress-explicit-deny-any
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-egress-explicit-deny-tcp
+	$(MAKE) --no-print-directory NAMESPACE=test-l4 run-test-pod-l4-ingress-all-allow-tcp
 	$(MAKE) --no-print-directory wait-for-workloads
 
 	# Cilium-agents on different nodes may simultaneously create multiple CiliumIdentities for a same set of labels.
 	# To enforce the following test deployment to use a same CiliumIdentity, we first create it with replicas=1 and then upscale.
 	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-ubuntu-pod-self
-	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
+	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 NAMESPACE=test-l3 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
 	kubectl apply -f testdata/policy/l3.yaml

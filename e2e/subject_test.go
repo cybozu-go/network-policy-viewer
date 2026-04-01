@@ -16,37 +16,47 @@ func testSubject() {
 		Args     []string
 		Expected string
 	}{
+		// Test --group //
+		// npv subject --group=all should not show individual subject
 		{
 			Args:     []string{"-A", "--group=all"},
 			Expected: ``,
 		},
+		// npv subject --group=ns should display subjects as NS
 		{
 			Args: []string{"-A", "--group=ns"},
 			Expected: `cilium-agent-proxy
 default
 kube-system
 local-path-storage
-test`,
+test
+test-l3
+test-l4`,
 		},
-		// npv subject POD should echo its name
+		// npv subject --group=pod should display subjects as POD when a single namespace is selected
 		{
-			Args:     []string{"-n=test", selfNames[0]},
-			Expected: selfNames[0],
+			Args:     []string{"-n=test", "-l=test=self", "--group=pod"},
+			Expected: strings.Join(selfNames, "\n"),
 		},
-		// npv subject -n -gn should display subjects as NS
-		{
-			Args:     []string{"-n=test", "-l=test=self", "--group=ns"},
-			Expected: `test`,
-		},
-		// npv subject -A -gp should display subjects as NS/POD
+		// npv subject --group=pod should display subjects as NS/POD when multiple namespaces are selected
 		{
 			Args:     []string{"-A", "-l=test=self", "--group=pod"},
 			Expected: fmt.Sprintf("test/%s\ntest/%s", selfNames[0], selfNames[1]),
 		},
-		// npv subject -n -gp should display subjects as POD
+		// Test selector options //
+		// npv subject -A should select subjects from all namespaces (already tested)
+		// npv subject -N should select subjects from the selected namespaces
 		{
-			Args:     []string{"-n=test", "-l=test=self", "--group=pod"},
-			Expected: strings.Join(selfNames, "\n"),
+			Args: []string{"-N=group=test", "--group=ns"},
+			Expected: `test
+test-l3
+test-l4`,
+		},
+		// npv subject -l should select pods with the specified label (already tested)
+		// npv subject --node should select pods on the node from all namespaces
+		{
+			Args:     []string{"--node=kind-worker", "-l=app.kubernetes.io/name=cilium-agent-proxy", "--group=ns"},
+			Expected: `cilium-agent-proxy`,
 		},
 	}
 

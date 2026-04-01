@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -9,13 +10,15 @@ import (
 
 func testList() {
 	cases := []struct {
+		Namespace string
 		Selector  string
 		ExtraArgs []string
 		Expected  string
 	}{
 		// npv list should show correct result for each pod
 		{
-			Selector: "test=self",
+			Namespace: "test",
+			Selector:  "test=self",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Egress,CiliumNetworkPolicy,test,l3-self
 Egress,CiliumNetworkPolicy,test,l4-self
@@ -24,74 +27,87 @@ Ingress,CiliumNetworkPolicy,test,l3-self
 Ingress,CiliumNetworkPolicy,test,l4-self`,
 		},
 		{
-			Selector: "test=l3-ingress-explicit-allow-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-allow-all",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all`,
+Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-allow-all`,
 		},
 		{
-			Selector: "test=l3-ingress-implicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-implicit-deny-all",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
 		{
-			Selector: "test=l3-ingress-explicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-deny-all",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all`,
+Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-deny-all`,
 		},
 		{
-			Selector: "test=l3-egress-implicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-implicit-deny-all",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
 		{
-			Selector: "test=l3-egress-explicit-deny-all",
+			Namespace: "test-l3",
+			Selector:  "test=l3-egress-explicit-deny-all",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-any",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-any`,
+Ingress,CiliumNetworkPolicy,test-l4,l4-ingress-explicit-allow-any`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-allow-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-allow-tcp",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-allow-tcp`,
+Ingress,CiliumNetworkPolicy,test-l4,l4-ingress-explicit-allow-tcp`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-any",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-any`,
+Ingress,CiliumNetworkPolicy,test-l4,l4-ingress-explicit-deny-any`,
 		},
 		{
-			Selector: "test=l4-ingress-explicit-deny-udp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-explicit-deny-udp",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l4-ingress-explicit-deny-udp`,
+Ingress,CiliumNetworkPolicy,test-l4,l4-ingress-explicit-deny-udp`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-any",
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-any",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
 		{
-			Selector: "test=l4-egress-explicit-deny-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-egress-explicit-deny-tcp",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 		},
 		{
-			Selector: "test=l4-ingress-all-allow-tcp",
+			Namespace: "test-l4",
+			Selector:  "test=l4-ingress-all-allow-tcp",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
+Ingress,CiliumNetworkPolicy,test-l4,l4-ingress-all-allow-tcp`,
 		},
 		// npv list should handle --ingress and --egress
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--ingress"},
 			Expected: `Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
@@ -99,6 +115,7 @@ Ingress,CiliumNetworkPolicy,test,l3-self
 Ingress,CiliumNetworkPolicy,test,l4-self`,
 		},
 		{
+			Namespace: "test",
 			Selector:  "test=self",
 			ExtraArgs: []string{"--egress"},
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
@@ -109,8 +126,9 @@ Egress,CiliumNetworkPolicy,test,l4-self`,
 
 	It("should list applied policies", func() {
 		for _, c := range cases {
-			podName := onePodByLabelSelector(Default, "test", c.Selector)
-			args := []string{"list", "-o=json", "-n=test", podName}
+			By(fmt.Sprintf("checking %v %v %v", c.Namespace, c.Selector, c.ExtraArgs))
+			podName := onePodByLabelSelector(Default, c.Namespace, c.Selector)
+			args := []string{"list", "-o=json", "-n=" + c.Namespace, podName}
 			args = append(args, c.ExtraArgs...)
 			result := runViewerSafe(Default, nil, args...)
 			result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
@@ -124,15 +142,15 @@ func testListWithSelector() {
 	It("should list applied policies for multiple pods", func() {
 		expected := `l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-allow-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
+l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-allow-all
 l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-allow-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
+l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-allow-all
 l3-ingress-explicit-deny-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-deny-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
-l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all`
+l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-deny-all`
 
-		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "-l=test in (l3-ingress-explicit-allow-all,l3-ingress-explicit-deny-all)")
+		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test-l3", "-l=test in (l3-ingress-explicit-allow-all,l3-ingress-explicit-deny-all)")
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.Replace(string(result), `"`, "", -1)
@@ -193,19 +211,24 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-ingress-explicit-allow-all
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-ingress-no-rule
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-ingress-implicit-deny-all
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-ingress-explicit-deny-all
   egressDeny:
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-egress-explicit-deny-all
   endpointSelector:
     matchLabels:
@@ -225,12 +248,14 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-ingress-explicit-allow-any
     toPorts:
     - ports:
       - port: "53"
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-ingress-explicit-allow-tcp
     toPorts:
     - ports:
@@ -238,12 +263,14 @@ spec:
         protocol: TCP
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-ingress-explicit-deny-any
     toPorts:
     - ports:
       - port: "53"
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-ingress-explicit-deny-udp
     toPorts:
     - ports:
@@ -258,12 +285,14 @@ spec:
   egressDeny:
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-egress-explicit-deny-any
     toPorts:
     - ports:
       - port: "53"
   - toEndpoints:
     - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
         k8s:test: l4-egress-explicit-deny-tcp
     toPorts:
     - ports:

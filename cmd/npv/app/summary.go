@@ -17,6 +17,7 @@ import (
 )
 
 func init() {
+	addPodSelectorOption(summaryCmd)
 	rootCmd.AddCommand(summaryCmd)
 }
 
@@ -25,10 +26,15 @@ var summaryCmd = &cobra.Command{
 	Short: "Show summary of network policy count",
 	Long:  `Show summary of network policy count`,
 
-	Args: cobra.ExactArgs(0),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runSummary(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr())
+		if len(args) == 0 {
+			return runSummary(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), "")
+		} else {
+			return runSummary(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
+		}
 	},
+	ValidArgsFunction: completePods,
 }
 
 type summaryEntry struct {
@@ -78,13 +84,13 @@ func runSummaryOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 	return &entry, nil
 }
 
-func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
+func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, "")
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}

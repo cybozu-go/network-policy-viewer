@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
@@ -18,6 +17,7 @@ import (
 )
 
 func init() {
+	addPodSelectorOption(idTreeCmd)
 	idCmd.AddCommand(idTreeCmd)
 }
 
@@ -38,17 +38,25 @@ type idTreeEntry struct {
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
-	_, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
 	}
 
-	li, err := dynamicClient.Resource(gvr.Identity).List(ctx, metav1.ListOptions{})
+	nss, err := clientset.CoreV1().Namespaces().List(ctx, subject.GetNamespaceListOptions())
 	if err != nil {
 		return err
 	}
 
-	selector := subject.GetSelectorConfig()
+	nsSet := make(map[string]any)
+	for _, ns := range nss.Items {
+		nsSet[ns.Name] = struct{}{}
+	}
+
+	li, err := dynamicClient.Resource(gvr.Identity).List(ctx, subject.GetPodListOptions())
+	if err != nil {
+		return err
+	}
 
 	items := make([]idTreeEntry, 0)
 	for _, item := range li.Items {
@@ -67,7 +75,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 			continue
 		}
 		if ns, ok := labels["k8s:io.kubernetes.pod.namespace"]; ok {
-			if !(selector.AllNamespaces || ns == selector.Namespace) {
+			if _, ok := nsSet[ns]; !ok {
 				continue
 			}
 		}

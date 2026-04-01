@@ -13,7 +13,7 @@ import (
 
 func init() {
 	addGroupOption(subjectCmd)
-	addSelectorOption(subjectCmd)
+	addPodSelectorOption(subjectCmd)
 	rootCmd.AddCommand(subjectCmd)
 }
 
