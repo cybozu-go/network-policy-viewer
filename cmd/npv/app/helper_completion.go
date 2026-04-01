@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 )
 
 func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (ret []string, directive cobra.ShellCompDirective) {
@@ -66,7 +67,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := listCiliumManagedPods(context.Background(), clientset, getSubjectNamespace(), metav1.ListOptions{})
+	pods, err := listCiliumManagedPods(context.Background(), clientset, getNamespaceListOptions(), getPodListOptions())
 	if err != nil {
 		return
 	}
@@ -92,7 +93,11 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 	li := strings.Split(toComplete, "/")
 	switch len(li) {
 	case 2: // namespace already filled
-		pods, err := listCiliumManagedPods(context.Background(), clientset, li[0], metav1.ListOptions{})
+		nsOptions := metav1.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", li[0]).String(),
+		}
+		podOptions := getPodListOptions()
+		pods, err := listCiliumManagedPods(context.Background(), clientset, nsOptions, podOptions)
 		if err != nil {
 			return
 		}
@@ -102,7 +107,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 		return
 
 	default:
-		nss, err := clientset.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+		nss, err := clientset.CoreV1().Namespaces().List(context.Background(), getNamespaceListOptions())
 		if err != nil {
 			return
 		}

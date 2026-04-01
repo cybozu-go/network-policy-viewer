@@ -147,7 +147,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := selectSubjectPods(ctx, clientset, name, commonOptions.selector)
+	pods, err := selectSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}

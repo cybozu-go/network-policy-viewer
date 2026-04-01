@@ -14,6 +14,7 @@ import (
 )
 
 func init() {
+	addSelectorOption(summaryCmd)
 	rootCmd.AddCommand(summaryCmd)
 }
 
@@ -77,7 +78,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 	}
 
 	summary := make([]summaryEntry, 0)
-	pods, err := selectSubjectPods(ctx, clientset, "", "")
+	pods, err := selectSubjectPods(ctx, clientset, "")
 	if err != nil {
 		return err
 	}

@@ -87,62 +87,83 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return uint32(identity), nil
 }
 
-func getSubjectNamespace() string {
-	if rootOptions.allNamespaces {
-		return ""
+func getNamespaceListOptions() metav1.ListOptions {
+	switch {
+	case rootOptions.namespace != "":
+		return metav1.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", rootOptions.namespace).String(),
+		}
+	case selectorOptions.namespaceSelector != "":
+		return metav1.ListOptions{
+			LabelSelector: selectorOptions.namespaceSelector,
+		}
+	case selectorOptions.allNamespaces:
+		return metav1.ListOptions{}
+	default:
+		return metav1.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default").String(),
+		}
 	}
-	return rootOptions.namespace
+}
+
+func getPodListOptions() metav1.ListOptions {
+	opts := metav1.ListOptions{
+		LabelSelector: selectorOptions.podSelector,
+	}
+	node := selectorOptions.node
+	if node != "" {
+		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorOptions.node).String()
+	}
+	return opts
 }
 
 func getPodSubject(pod *corev1.Pod) string {
-	if rootOptions.allNamespaces {
+	if selectorOptions.allNamespaces || selectorOptions.namespaceSelector != "" {
 		return pod.Namespace + "/" + pod.Name
 	} else {
 		return pod.Name
 	}
 }
 
-func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name, selector string) ([]*corev1.Pod, error) {
-	if (name != "") && (rootOptions.allNamespaces || selector != "") {
+func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
+	if (name != "") && (selectorOptions.allNamespaces || selectorOptions.namespaceSelector != "" || selectorOptions.podSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
-	ns := getSubjectNamespace()
 	if name != "" {
-		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+		pod, err := clientset.CoreV1().Pods(rootOptions.namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		return []*corev1.Pod{pod}, nil
 	} else {
-		opts := metav1.ListOptions{
-			LabelSelector: selector,
-		}
-		node := rootOptions.node
-		if node != "" {
-			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", rootOptions.node).String()
-		}
-
-		return listCiliumManagedPods(ctx, clientset, ns, opts)
+		return listCiliumManagedPods(ctx, clientset, getNamespaceListOptions(), getPodListOptions())
 	}
 }
 
-func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
-	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
+func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, nsOptions metav1.ListOptions, podOptions metav1.ListOptions) ([]*corev1.Pod, error) {
+	nss, err := c.CoreV1().Namespaces().List(ctx, nsOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	ret := make([]*corev1.Pod, 0)
-	for _, p := range pods.Items {
-		// Skip non-relevant pods
-		if p.Spec.HostNetwork {
-			continue
+	for _, n := range nss.Items {
+		pods, err := c.CoreV1().Pods(n.Name).List(ctx, podOptions)
+		if err != nil {
+			return nil, err
 		}
-		if p.Status.Phase != corev1.PodRunning {
-			continue
+
+		for _, p := range pods.Items {
+			// Skip non-relevant pods
+			if p.Spec.HostNetwork {
+				continue
+			}
+			if p.Status.Phase != corev1.PodRunning {
+				continue
+			}
+			ret = append(ret, &p)
 		}
-		ret = append(ret, &p)
 	}
 	return ret, nil
 }

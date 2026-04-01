@@ -15,6 +15,7 @@ import (
 )
 
 func init() {
+	addNamespaceSelectorOption(idTreeCmd)
 	idCmd.AddCommand(idTreeCmd)
 }
 
@@ -35,9 +36,19 @@ type idTreeEntry struct {
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
-	_, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
+	}
+
+	nss, err := clientset.CoreV1().Namespaces().List(ctx, getNamespaceListOptions())
+	if err != nil {
+		return err
+	}
+
+	nsSet := make(map[string]any)
+	for _, ns := range nss.Items {
+		nsSet[ns.Name] = struct{}{}
 	}
 
 	li, err := dynamicClient.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
@@ -62,7 +73,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 			continue
 		}
 		if ns, ok := labels["k8s:io.kubernetes.pod.namespace"]; ok {
-			if !(rootOptions.allNamespaces || ns == rootOptions.namespace) {
+			if _, ok := nsSet[ns]; !ok {
 				continue
 			}
 		}
