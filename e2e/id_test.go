@@ -83,6 +83,12 @@ func testIdLabel() {
 }
 
 func testIdSummary() {
+	It("should show ID summary for selected namespace", func() {
+		resultData := runViewerSafe(Default, nil, "id", "summary", "-n=default", "-o=json")
+		result := string(jqSafe(Default, resultData, "-cr"))
+		Expect(result).To(Equal(`{"default":1}`))
+	})
+
 	cases := []struct {
 		Namespace string
 		Count     int
@@ -108,9 +114,9 @@ func testIdSummary() {
 			Count:     13,
 		},
 	}
-	It("should show ID summary", func() {
+	It("should show ID summary for all namespaces", func() {
 		for _, c := range cases {
-			resultData := runViewerSafe(Default, nil, "id", "summary", "-o=json")
+			resultData := runViewerSafe(Default, nil, "id", "summary", "-Ao=json")
 			resultData = jqSafe(Default, resultData, "-r", fmt.Sprintf(`."%s"`, c.Namespace))
 			result, err := strconv.Atoi(string(resultData))
 			Expect(err).NotTo(HaveOccurred())
@@ -171,5 +177,16 @@ k8s:test
 		result = podPattern.ReplaceAll(result, []byte("${1}"))
 		result = selfPattern.ReplaceAll(result, []byte("self"))
 		Expect(string(result)).To(Equal(expected))
+
+		result = runViewerSafe(Default, nil, "id", "tree", "-N=kubernetes.io/metadata.name=test")
+		result = podPattern.ReplaceAll(result, []byte("${1}"))
+		result = selfPattern.ReplaceAll(result, []byte("self"))
+		Expect(string(result)).To(Equal(expected))
+	})
+
+	It("should show id tree for all namespaces", func() {
+		result := string(runViewerSafe(Default, nil, "id", "tree", "-A"))
+		Expect(string(result)).To(ContainSubstring("k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: default"))
+		Expect(string(result)).To(ContainSubstring("k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test"))
 	})
 }

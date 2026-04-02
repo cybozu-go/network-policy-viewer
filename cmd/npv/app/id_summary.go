@@ -13,6 +13,7 @@ import (
 )
 
 func init() {
+	addNamespaceSelectorOption(idSummaryCmd)
 	idCmd.AddCommand(idSummaryCmd)
 }
 
@@ -28,9 +29,19 @@ var idSummaryCmd = &cobra.Command{
 }
 
 func runIdSummary(ctx context.Context, w io.Writer) error {
-	_, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
+	}
+
+	nss, err := clientset.CoreV1().Namespaces().List(ctx, getNamespaceListOptions())
+	if err != nil {
+		return err
+	}
+
+	nsSet := make(map[string]any)
+	for _, ns := range nss.Items {
+		nsSet[ns.Name] = struct{}{}
 	}
 
 	li, err := dynamicClient.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
@@ -45,6 +56,9 @@ func runIdSummary(ctx context.Context, w io.Writer) error {
 			return err
 		}
 		if !ok {
+			continue
+		}
+		if _, ok := nsSet[ns]; !ok {
 			continue
 		}
 		countMap[ns] += 1

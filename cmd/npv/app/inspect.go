@@ -210,7 +210,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	pods, err := selectSubjectPods(ctx, clientset, name, commonOptions.selector)
+	pods, err := selectSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}
