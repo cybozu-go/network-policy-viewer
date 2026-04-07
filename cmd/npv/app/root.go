@@ -77,6 +77,18 @@ var commonOptions struct {
 	with     cidrOptions
 }
 
+var policyOptions struct {
+	ingress bool
+	egress  bool
+}
+
+func fillPolicyOptions() {
+	if !policyOptions.ingress && !policyOptions.egress {
+		policyOptions.ingress = true
+		policyOptions.egress = true
+	}
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringP(flagNamespace, "n", "default", "namespace of pods")
 	rootCmd.PersistentFlags().BoolP(flagAllNamespaces, "A", false, "show pods across all namespaces")
@@ -99,6 +111,11 @@ func init() {
 
 func addSelectorOption(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&commonOptions.selector, "selector", "l", "", "specify label constraints")
+}
+
+func addDirectionOption(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&policyOptions.ingress, "ingress", false, "show ingress-rules only")
+	cmd.Flags().BoolVar(&policyOptions.egress, "egress", false, "show egress-rules only")
 }
 
 func addWithCIDROptions(cmd *cobra.Command) {
@@ -139,7 +156,11 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 var rootCmd = &cobra.Command{
 	Use: "npv",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return fillRootOptions(cmd)
+		if err := fillRootOptions(cmd); err != nil {
+			return err
+		}
+		fillPolicyOptions()
+		return nil
 	},
 }
 

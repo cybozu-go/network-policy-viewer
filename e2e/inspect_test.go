@@ -96,24 +96,6 @@ Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		{
-			Selector:  "test=self",
-			ExtraArgs: []string{"--allowed", "--ingress"},
-			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
-Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector:  "test=self",
-			ExtraArgs: []string{"--denied", "--egress"},
-			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
-Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
-Deny,Egress,cidr:8.8.4.4/32,false,false,132,53
-Deny,Egress,l3-egress-explicit-deny-all,true,true,0,0
-Deny,Egress,l4-egress-explicit-deny-any,false,false,6,53
-Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
-Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
-Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
-		},
-		{
 			Selector:  "test=l4-ingress-explicit-allow-tcp",
 			ExtraArgs: []string{"--used"},
 			Expected:  `Allow,Ingress,self,false,false,6,8000`,
@@ -198,6 +180,26 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
+		},
+		// npv inspect should handle --ingress and --egress
+		// npv inspect should handle --allowed and --denied
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--ingress", "--allowed"},
+			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--egress", "--denied"},
+			Expected: `Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,132,53
+Deny,Egress,l3-egress-explicit-deny-all,true,true,0,0
+Deny,Egress,l4-egress-explicit-deny-any,false,false,6,53
+Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
+Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
+Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 		},
 	}
 

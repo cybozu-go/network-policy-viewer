@@ -9,9 +9,11 @@ import (
 
 func testList() {
 	cases := []struct {
-		Selector string
-		Expected string
+		Selector  string
+		ExtraArgs []string
+		Expected  string
 	}{
+		// npv list should show correct result for each pod
 		{
 			Selector: "test=self",
 			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
@@ -88,12 +90,29 @@ Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
 Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 Ingress,CiliumNetworkPolicy,test,l4-ingress-all-allow-tcp`,
 		},
+		// npv list should handle --ingress and --egress
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--ingress"},
+			Expected: `Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumNetworkPolicy,test,l3-self
+Ingress,CiliumNetworkPolicy,test,l4-self`,
+		},
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--egress"},
+			Expected: `Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Egress,CiliumNetworkPolicy,test,l3-self
+Egress,CiliumNetworkPolicy,test,l4-self`,
+		},
 	}
 
 	It("should list applied policies", func() {
 		for _, c := range cases {
 			podName := onePodByLabelSelector(Default, "test", c.Selector)
-			result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", podName)
+			args := []string{"list", "-o=json", "-n=test", podName}
+			args = append(args, c.ExtraArgs...)
+			result := runViewerSafe(Default, nil, args...)
 			result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
 			resultString := strings.Replace(string(result), `"`, "", -1)
 			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
