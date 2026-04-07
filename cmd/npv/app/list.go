@@ -157,8 +157,10 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
-	policySet := make(map[derivedFromEntry]any)
-	mapNodeReduce(pods,
+	policySet := mapNodeReduce(pods,
+		func() map[derivedFromEntry]any {
+			return make(map[derivedFromEntry]any)
+		},
 		func(pod *corev1.Pod) map[derivedFromEntry]any {
 			policy, err := runListOnPod(ctx, clientset, dynamicClient, pod)
 			if err != nil {
@@ -167,10 +169,11 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			}
 			return policy
 		},
-		func(result map[derivedFromEntry]any) {
-			for k := range result {
-				policySet[k] = struct{}{}
+		func(x, y map[derivedFromEntry]any) map[derivedFromEntry]any {
+			for k := range y {
+				x[k] = struct{}{}
 			}
+			return x
 		},
 	)
 

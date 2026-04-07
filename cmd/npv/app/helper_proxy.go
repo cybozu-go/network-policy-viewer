@@ -311,51 +311,63 @@ func filterPolicyMap(ctx context.Context, client *client.Client, policies []poli
 	return policies, nil
 }
 
-func mapNodeReduce[T any](pods []*corev1.Pod, mapFunc func(*corev1.Pod) T, reduceFunc func(T)) {
-	var pickMutex, reduceMutex sync.Mutex
-	nodes := make(map[string]bool)
+func mapNodeReduce[T any](pods []*corev1.Pod, initFunc func() T, mapFunc func(*corev1.Pod) T, reduceFunc func(T, T) T) T {
+	var mu sync.Mutex
 	pods = slices.Clone(pods)
-
+	nodes := make(map[string]bool)
 	for _, p := range pods {
 		nodes[p.Spec.NodeName] = false
 	}
+
+	numJobs := min(rootOptions.jobs, len(pods), len(nodes))
+	if numJobs == 0 {
+		return initFunc()
+	}
+
 	pick := func() (*corev1.Pod, bool) {
-		pickMutex.Lock()
-		defer pickMutex.Unlock()
-		for _, p := range pods {
+		mu.Lock()
+		defer mu.Unlock()
+		for i := len(pods) - 1; i >= 0; i-- {
+			p := pods[i]
 			if !nodes[p.Spec.NodeName] {
 				nodes[p.Spec.NodeName] = true
+				pods = slices.Delete(pods, i, i+1)
 				return p, true
 			}
 		}
 		return nil, false
 	}
 	release := func(p *corev1.Pod) {
-		pickMutex.Lock()
-		defer pickMutex.Unlock()
+		mu.Lock()
+		defer mu.Unlock()
 		if !nodes[p.Spec.NodeName] {
 			panic("internal error")
 		}
 		nodes[p.Spec.NodeName] = false
-		pods = slices.DeleteFunc(pods, func(pp *corev1.Pod) bool { return p == pp })
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < min(rootOptions.jobs, len(pods), len(nodes)); i++ {
+	values := make([]T, numJobs)
+	for i := 0; i < numJobs; i++ {
 		wg.Go(func() {
+			values[i] = initFunc()
 			for {
 				p, found := pick()
 				if !found {
 					return
 				}
-				value := mapFunc(p)
+				v := mapFunc(p)
 				release(p)
 
-				reduceMutex.Lock()
-				reduceFunc(value)
-				reduceMutex.Unlock()
+				values[i] = reduceFunc(values[i], v)
 			}
 		})
 	}
 	wg.Wait()
+
+	result := values[0]
+	for i := 1; i < numJobs; i++ {
+		result = reduceFunc(result, values[i])
+	}
+	return result
 }
