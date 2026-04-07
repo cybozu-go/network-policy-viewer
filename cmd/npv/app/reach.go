@@ -43,7 +43,7 @@ var reachCmd = &cobra.Command{
 
 	Args: cobra.ExactArgs(0),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runReach(context.Background(), cmd.OutOrStdout())
+		return runReach(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 	},
 }
 
@@ -62,7 +62,7 @@ type reachEntry struct {
 	Requests         uint64 `json:"requests"`
 }
 
-func runReach(ctx context.Context, w io.Writer) error {
+func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 	var from, to *types.NamespacedName
 	if reachOptions.from != "" {
 		f, err := parseNamespacedName(reachOptions.from)
@@ -118,7 +118,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			return errors.New("one of --to or --to-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, clientset, from.Namespace, from.Name)
+		client, err := createCiliumClient(ctx, stderr, clientset, from.Namespace, from.Name)
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 				if idObj.IsReservedIdentity() {
 					entry.Example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
+					response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
 					if err != nil {
 						return err
 					}
@@ -205,7 +205,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 			return errors.New("one of --from or --from-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, clientset, to.Namespace, to.Name)
+		client, err := createCiliumClient(ctx, stderr, clientset, to.Namespace, to.Name)
 		if err != nil {
 			return err
 		}
@@ -249,7 +249,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 				if idObj.IsReservedIdentity() {
 					entry.Example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
+					response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
 					if err != nil {
 						return err
 					}
@@ -274,7 +274,7 @@ func runReach(ctx context.Context, w io.Writer) error {
 	}
 
 	header := []string{"ROLE", "DIRECTION", "POLICY", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	return writeSimpleOrJson(w, arr, header, len(arr), func(index int) []any {
+	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		protocol := u8proto.U8proto(p.Protocol).String()
 		var port string

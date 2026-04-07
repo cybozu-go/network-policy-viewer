@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -14,10 +15,27 @@ import (
 	"golang.org/x/term"
 )
 
-var privateCIDRs []*net.IPNet
+var (
+	privateCIDRs        []*net.IPNet
+	ciliumModuleVersion string
+)
 
 func init() {
 	privateCIDRs, _, _ = parseCIDRFlag("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("failed to read build info")
+	}
+	for _, d := range info.Deps {
+		if d.Path == "github.com/cilium/cilium" {
+			if d.Replace != nil && d.Replace.Version != "" {
+				ciliumModuleVersion = d.Replace.Version
+			}
+			ciliumModuleVersion = d.Version
+			break
+		}
+	}
 }
 
 func parseCIDRFlag(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {

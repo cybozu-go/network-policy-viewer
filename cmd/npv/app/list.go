@@ -92,10 +92,10 @@ func parseDerivedFromEntry(subject, direction string, input []string) derivedFro
 	return val
 }
 
-func runListOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[derivedFromEntry]any, error) {
+func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[derivedFromEntry]any, error) {
 	policySet := make(map[derivedFromEntry]any)
 
-	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -162,7 +162,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			return make(map[derivedFromEntry]any)
 		},
 		func(pod *corev1.Pod) map[derivedFromEntry]any {
-			policy, err := runListOnPod(ctx, clientset, dynamicClient, pod)
+			policy, err := runListOnPod(ctx, stderr, clientset, dynamicClient, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "* %v\n", err)
 				return nil
