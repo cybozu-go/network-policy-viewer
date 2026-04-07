@@ -19,8 +19,6 @@ import (
 )
 
 var inspectOptions struct {
-	ingress bool
-	egress  bool
 	allowed bool
 	denied  bool
 	used    bool
@@ -28,14 +26,13 @@ var inspectOptions struct {
 }
 
 func init() {
-	inspectCmd.Flags().BoolVar(&inspectOptions.ingress, "ingress", false, "show ingress-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.egress, "egress", false, "show egress-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
 	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
+	addDirectionOption(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)
 }
 
@@ -98,10 +95,6 @@ func lessInspectEntry(x, y *inspectEntry) bool {
 }
 
 func parseInspectOptions() {
-	if !inspectOptions.ingress && !inspectOptions.egress {
-		inspectOptions.ingress = true
-		inspectOptions.egress = true
-	}
 	if !inspectOptions.allowed && !inspectOptions.denied {
 		inspectOptions.allowed = true
 		inspectOptions.denied = true
@@ -195,7 +188,7 @@ func runInspectOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	parseInspectOptions()
 	basicFilter := makeBasicFilter(
-		inspectOptions.ingress, inspectOptions.egress,
+		policyOptions.ingress, policyOptions.egress,
 		inspectOptions.allowed, inspectOptions.denied,
 		inspectOptions.used, inspectOptions.unused,
 	)

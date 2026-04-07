@@ -27,6 +27,7 @@ var listOptions struct {
 
 func init() {
 	addSelectorOption(listCmd)
+	addDirectionOption(listCmd)
 	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
 	rootCmd.AddCommand(listCmd)
 }
@@ -122,19 +123,22 @@ func runListOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicC
 		return nil, errors.New("api response is insufficient")
 	}
 
-	ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
-	for _, rule := range ingressRules {
-		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(getPodSubject(pod), directionIngress, r)
-			policySet[entry] = struct{}{}
+	if policyOptions.ingress {
+		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
+		for _, rule := range ingressRules {
+			for _, r := range rule.DerivedFromRules {
+				entry := parseDerivedFromEntry(getPodSubject(pod), directionIngress, r)
+				policySet[entry] = struct{}{}
+			}
 		}
 	}
-
-	egressRules := response.Payload.Status.Policy.Realized.L4.Egress
-	for _, rule := range egressRules {
-		for _, r := range rule.DerivedFromRules {
-			entry := parseDerivedFromEntry(getPodSubject(pod), directionEgress, r)
-			policySet[entry] = struct{}{}
+	if policyOptions.egress {
+		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
+		for _, rule := range egressRules {
+			for _, r := range rule.DerivedFromRules {
+				entry := parseDerivedFromEntry(getPodSubject(pod), directionEgress, r)
+				policySet[entry] = struct{}{}
+			}
 		}
 	}
 
@@ -178,14 +182,14 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
-	header := []string{"DIRECTION", "KIND", "NAMESPACE", "NAME"}
+	header := []string{"DIRECTION", "|", "KIND", "NAMESPACE", "NAME"}
 	if name == "" {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, policyList, header, len(policyList), func(index int) []any {
 		p := policyList[index]
 		subValues := []any{p.Subject, "|"}
-		values := []any{p.Direction, p.Kind, p.Namespace, p.Name}
+		values := []any{p.Direction, "|", p.Kind, p.Namespace, p.Name}
 		if name == "" {
 			values = append(subValues, values...)
 		}
