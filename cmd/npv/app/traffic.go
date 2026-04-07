@@ -216,8 +216,10 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	traffic := make(map[trafficKey]*trafficValue)
-	mapNodeReduce(pods,
+	traffic := mapNodeReduce(pods,
+		func() map[trafficKey]*trafficValue {
+			return make(map[trafficKey]*trafficValue)
+		},
 		func(pod *corev1.Pod) map[trafficKey]*trafficValue {
 			result, err := runTrafficOnPod(ctx, clientset, dynamicClient, filter, pod)
 			if err != nil {
@@ -226,19 +228,20 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			}
 			return result
 		},
-		func(result map[trafficKey]*trafficValue) {
-			for k, v := range result {
-				if _, ok := traffic[k]; ok {
-					traffic[k].Bytes += v.Bytes
-					traffic[k].Requests += v.Requests
+		func(x, y map[trafficKey]*trafficValue) map[trafficKey]*trafficValue {
+			for k, v := range y {
+				if _, ok := x[k]; ok {
+					x[k].Bytes += v.Bytes
+					x[k].Requests += v.Requests
 				} else {
-					traffic[k] = &trafficValue{
+					x[k] = &trafficValue{
 						Example:  v.Example,
 						Bytes:    v.Bytes,
 						Requests: v.Requests,
 					}
 				}
 			}
+			return x
 		},
 	)
 

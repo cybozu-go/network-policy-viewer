@@ -208,8 +208,10 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	arr := make([]inspectEntry, 0)
-	mapNodeReduce(pods,
+	arr := mapNodeReduce(pods,
+		func() []inspectEntry {
+			return make([]inspectEntry, 0)
+		},
 		func(pod *corev1.Pod) []inspectEntry {
 			result, err := runInspectOnPod(ctx, clientset, dynamicClient, filter, pod)
 			if err != nil {
@@ -218,10 +220,11 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			}
 			return result
 		},
-		func(result []inspectEntry) {
-			if result != nil {
-				arr = append(arr, result...)
+		func(x, y []inspectEntry) []inspectEntry {
+			if y != nil {
+				x = append(x, y...)
 			}
+			return x
 		},
 	)
 	sort.Slice(arr, func(i, j int) bool { return lessInspectEntry(&arr[i], &arr[j]) })

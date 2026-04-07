@@ -76,25 +76,28 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	summary := make([]summaryEntry, 0)
 	pods, err := selectSubjectPods(ctx, clientset, "", "")
 	if err != nil {
 		return err
 	}
 
-	mapNodeReduce(pods,
-		func(pod *corev1.Pod) *summaryEntry {
+	summary := mapNodeReduce(pods,
+		func() []summaryEntry {
+			return make([]summaryEntry, 0)
+		},
+		func(pod *corev1.Pod) []summaryEntry {
 			entry, err := runSummaryOnPod(ctx, clientset, dynamicClient, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "* %v\n", err)
 				return nil
 			}
-			return &entry
+			return []summaryEntry{entry}
 		},
-		func(result *summaryEntry) {
-			if result != nil {
-				summary = append(summary, *result)
+		func(x, y []summaryEntry) []summaryEntry {
+			if len(y) > 0 {
+				x = append(x, y...)
 			}
+			return x
 		},
 	)
 	sort.Slice(summary, func(i, j int) bool { return lessSummaryEntry(&summary[i], &summary[j]) })
