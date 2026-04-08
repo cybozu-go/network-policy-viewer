@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -91,6 +92,44 @@ func handlePolicy(w http.ResponseWriter, r *http.Request) {
 	renderJSON(w, r.URL.Path, stdout, http.StatusOK)
 }
 
+func handleVersion(w http.ResponseWriter, r *http.Request) {
+	stdout, _, err := runCommand(ciliumPath, nil, "status", "-ojson")
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to read status", http.StatusInternalServerError)
+		return
+	}
+
+	type statusCilium struct {
+		Msg string `json:"msg,omitempty"`
+	}
+	type status struct {
+		Cilium statusCilium `json:"cilium,omitempty"`
+	}
+
+	var s status
+	if err := json.Unmarshal(stdout, &s); err != nil {
+		renderError(w, r.URL.Path, "failed to parse status", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to number to avoid exposing unexpected content
+	var major, minor, revision int
+	fmt.Sscanf(s.Cilium.Msg, "%d.%d.%d", &major, &minor, &revision)
+
+	// Do not expose excessive info to client
+	var result struct {
+		Cilium string `json:"cilium,omitempty"`
+	}
+	result.Cilium = fmt.Sprintf("v%d.%d.%d", major, minor, revision)
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to marshal result", http.StatusInternalServerError)
+		return
+	}
+	renderJSON(w, r.URL.Path, data, http.StatusOK)
+}
+
 func subMain() error {
 	socketClient = &http.Client{
 		Transport: &http.Transport{
@@ -108,6 +147,7 @@ func subMain() error {
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
 	http.HandleFunc("/v1/identity/", handleIdentity)
 	http.HandleFunc("/policy/", handlePolicy)
+	http.HandleFunc("/version", handleVersion)
 
 	return server.ListenAndServe()
 }

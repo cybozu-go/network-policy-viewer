@@ -83,10 +83,10 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 	return ret < 0
 }
 
-func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) (map[trafficKey]*trafficValue, error) {
+func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) (map[trafficKey]*trafficValue, error) {
 	traffic := make(map[trafficKey]*trafficValue)
 
-	client, err := createCiliumClient(ctx, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -136,7 +136,7 @@ func runTrafficOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 			if idObj.IsReservedIdentity() {
 				example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
+				response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
@@ -221,7 +221,7 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			return make(map[trafficKey]*trafficValue)
 		},
 		func(pod *corev1.Pod) map[trafficKey]*trafficValue {
-			result, err := runTrafficOnPod(ctx, clientset, dynamicClient, filter, pod)
+			result, err := runTrafficOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "* %v\n", err)
 				return nil

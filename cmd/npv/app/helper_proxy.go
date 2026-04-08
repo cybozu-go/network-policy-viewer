@@ -20,24 +20,39 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
+type proxyClient struct {
+	*client.Client
+
+	node                string
+	endpointURL         string
+	cachedLocalIdentity map[uint32]*policy.GetIdentityIDOK
+}
+
 var (
 	proxyMutex          sync.Mutex
-	cachedCiliumClients = make(map[string]*client.Client)
-	cachedLocalIdentity = make(map[*client.Client]map[uint32]*policy.GetIdentityIDOK)
+	cachedCiliumClients = make(map[string]*proxyClient)
 )
 
-func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
-	targetPod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+func getPodNodeName(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
+	pod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
-	targetNode := targetPod.Spec.NodeName
+	return pod.Spec.NodeName, nil
+}
+
+func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
+	targetNode, err := getPodNodeName(ctx, c, namespace, name)
+	if err != nil {
+		return "", err
+	}
 
 	pods, err := c.CoreV1().Pods(rootOptions.proxyNamespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + targetNode,
@@ -55,11 +70,16 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
 }
 
-func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*client.Client, error) {
+func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, namespace, name string) (*proxyClient, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
 
-	endpoint, err := getProxyEndpoint(ctx, clientset, namespace, name)
+	targetNode, err := getPodNodeName(ctx, c, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoint, err := getProxyEndpoint(ctx, c, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -72,34 +92,68 @@ func createCiliumClient(ctx context.Context, clientset *kubernetes.Clientset, na
 	if err != nil {
 		return nil, err
 	}
-	cachedCiliumClients[endpoint] = ciliumClient
+	proxy := &proxyClient{
+		Client:      ciliumClient,
+		node:        targetNode,
+		endpointURL: endpoint,
+	}
+	if err := proxy.testAgentVersion(ctx, stderr); err != nil {
+		return nil, err
+	}
 
-	return ciliumClient, err
+	cachedCiliumClients[endpoint] = proxy
+	return proxy, nil
 }
 
-func queryLocalIdentity(ctx context.Context, client *client.Client, id uint32) (*policy.GetIdentityIDOK, error) {
-	proxyMutex.Lock()
-	defer proxyMutex.Unlock()
-
-	if _, ok := cachedLocalIdentity[client]; !ok {
-		cachedLocalIdentity[client] = make(map[uint32]*policy.GetIdentityIDOK)
+func (c *proxyClient) queryLocalIdentity(ctx context.Context, id uint32) (*policy.GetIdentityIDOK, error) {
+	if c.cachedLocalIdentity == nil {
+		c.cachedLocalIdentity = make(map[uint32]*policy.GetIdentityIDOK)
 	}
-	if _, ok := cachedLocalIdentity[client][id]; !ok {
+
+	if _, ok := c.cachedLocalIdentity[id]; !ok {
 		// If the identity is in the local scope, it is only valid on the reporting node.
 		params := policy.GetIdentityIDParams{
 			Context: ctx,
 			ID:      strconv.FormatInt(int64(id), 10),
 		}
-		response, err := client.Policy.GetIdentityID(&params)
+		response, err := c.Policy.GetIdentityID(&params)
 		switch err {
 		case nil:
-			cachedLocalIdentity[client][id] = response
+			c.cachedLocalIdentity[id] = response
 		default:
 			err = fmt.Errorf("failed to get identity: %w", err)
 		}
 		return response, err
 	}
-	return cachedLocalIdentity[client][id], nil
+	return c.cachedLocalIdentity[id], nil
+}
+
+func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) error {
+	url := c.endpointURL + "/version"
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to request version: %w", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var result struct {
+		Cilium string `json:"cilium,omitempty"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return err
+	}
+
+	agentVersion := semver.MajorMinor(result.Cilium)
+	moduleVersion := semver.MajorMinor(ciliumModuleVersion)
+	if agentVersion != moduleVersion {
+		fmt.Fprintf(stderr, "Warning: %s is running Cilium %s, but npv is built for %s. Result may be incorrect.\n", c.node, agentVersion, moduleVersion)
+	}
+
+	return nil
 }
 
 // For the meanings of the flags, see:
@@ -163,14 +217,14 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 	return policies, nil
 }
 
-type policyFilter func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error)
+type policyFilter func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error)
 
 func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policyFilter {
 	if ingress && egress && allowed && denied && used && unused {
 		// no filter
 		return nil
 	}
-	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
 		ret := true
 		switch {
 		case p.IsIngress():
@@ -195,7 +249,7 @@ func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policy
 }
 
 func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
-	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -215,7 +269,7 @@ func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
 func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
 	incl = ip.RemoveCIDRs(incl, excl)
 
-	return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -235,7 +289,7 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		response, err := queryLocalIdentity(ctx, client, p.Key.Identity)
+		response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
 		if err != nil {
 			return false, err
 		}
@@ -278,7 +332,7 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	case 1:
 		return arr[0]
 	default:
-		return func(ctx context.Context, client *client.Client, p *policyEntry) (bool, error) {
+		return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
 			for _, f := range arr {
 				result, err := f(ctx, client, p)
 				if !result || err != nil {
@@ -290,7 +344,7 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	}
 }
 
-func filterPolicyMap(ctx context.Context, client *client.Client, policies []policyEntry, pred policyFilter) ([]policyEntry, error) {
+func filterPolicyMap(ctx context.Context, client *proxyClient, policies []policyEntry, pred policyFilter) ([]policyEntry, error) {
 	if pred == nil {
 		return policies, nil
 	}
