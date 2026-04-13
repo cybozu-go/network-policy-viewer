@@ -1,11 +1,16 @@
 CILIUM_VERSION := $(shell go list -m -f '{{.Version}}' github.com/cilium/cilium | cut -c2-)
 
 BIN_DIR := $(shell pwd)/../bin
-TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/../cache
+TOOLS_DIR := $(BIN_DIR)/download
 
 POLICY_VIEWER := $(BIN_DIR)/npv
-HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
+HELM := helm --content-cache $(CACHE_DIR)/helm/content
+
+# Avoid using SHA here
+# https://github.com/kubernetes-sigs/kind/issues/4028
+CILIUM_IMAGE := quay.io/cilium/cilium:v1.16.19
+CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.16.19@sha256:7496a278401c221a30d023df4e40c4e97c3c203645b337d332da5f9e887acf06
 
 DEPLOYMENT_REPLICAS ?= 1
 
@@ -24,10 +29,11 @@ wait-for-workloads:
 
 .PHONY: start
 start:
-	docker pull quay.io/cilium/cilium:v$(CILIUM_VERSION)
+	docker pull $(CILIUM_IMAGE)
 	kind create cluster --config testdata/cluster.yaml
-	kind load docker-image quay.io/cilium/cilium:v$(CILIUM_VERSION)
-	$(HELM) install cilium cilium/cilium --version $(CILIUM_VERSION) \
+	kind load docker-image $(CILIUM_IMAGE)
+	$(HELM) install cilium $(CILIUM_CHART) \
+		--version $$(echo $(CILIUM_IMAGE) | cut -d: -f2 | cut -c2-) \
 		--namespace kube-system \
 		--set envoy.enabled=false \
 		--set image.pullPolicy=IfNotPresent \

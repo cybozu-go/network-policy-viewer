@@ -3,7 +3,7 @@ TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
-CILIUM_IMAGE_VERSION := 1.16.19.1
+CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:f9f1bcfe2bf0b54caf3d6de6549deccadfdc48ff7b1d6b351eb8c5f745addc70 # 1.16.19.3
 CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
 CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
@@ -25,24 +25,22 @@ setup: $(CUSTOMCHECKER) $(STATICCHECK) ## Install necessary tools
 		exit 1; \
 	fi
 	aqua install -l
-	$(HELM) repo add cilium https://helm.cilium.io/
-	$(HELM) repo update cilium
 
 .PHONY: download-cilium-cli
 download-cilium-cli:
 	mkdir -p $(TOOLS_DIR)
-	CONTAINER_ID=$$(docker run --rm --detach --entrypoint pause ghcr.io/cybozu/cilium:$(CILIUM_IMAGE_VERSION)); \
+	CONTAINER_ID=$$(docker run --rm --detach --entrypoint pause $(CYBOZU_CILIUM_IMAGE)); \
 	docker cp $${CONTAINER_ID}:/usr/bin/cilium-dbg $(CILIUM_DBG_CLI); \
 	docker stop $${CONTAINER_ID}
 
 $(CUSTOMCHECKER):
-	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@latest
+	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@5cda2f85e31dbe2453825f6520710a76465f197e # v0.1.5
 
 .PHONY: staticcheck
 staticcheck: $(STATICCHECK)
 
 $(STATICCHECK):
-	GOBIN=$(TOOLS_DIR) go install honnef.co/go/tools/cmd/staticcheck@latest
+	GOBIN=$(TOOLS_DIR) go install honnef.co/go/tools/cmd/staticcheck@ff63afafc529279f454e02f1d060210bd4263951 # v0.7.0
 
 .PHONY: clean
 clean:
