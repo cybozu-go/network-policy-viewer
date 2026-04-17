@@ -113,7 +113,7 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 	url := c.endpointURL + "/version"
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("failed to request version: %w", err)
+		return fmt.Errorf("failed to request /version: %w", err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
@@ -177,6 +177,16 @@ func (c *proxyClient) fetchCIDRIdentities() error {
 		}
 	}
 	return nil
+}
+
+func (c *proxyClient) listCIDRIdentity() ([]uint32, error) {
+	if err := c.fetchCIDRIdentities(); err != nil {
+		return nil, err
+	}
+	// for k, v := range c.cachedCIDRIdentities {
+
+	// }
+	return nil, nil
 }
 
 func (c *proxyClient) getCIDRIdentity(ctx context.Context, id uint32) (*models.Identity, error) {
