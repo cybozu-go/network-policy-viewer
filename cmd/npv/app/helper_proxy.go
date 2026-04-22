@@ -188,7 +188,7 @@ func (c *proxyClient) getCIDRIdentity(ctx context.Context, id uint32) (*models.I
 
 	value, ok := c.cachedCIDRIdentities[id]
 	if !ok {
-		return nil, fmt.Errorf("failed to found CIDR identity for %d", id)
+		return nil, fmt.Errorf("failed to find CIDR identity for %d", id)
 	}
 	return value.identity, nil
 }
