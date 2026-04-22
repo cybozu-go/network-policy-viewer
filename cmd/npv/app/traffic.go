@@ -136,12 +136,12 @@ func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
+				cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
-				if slices.Contains(response.Payload.Labels, "reserved:world") {
-					lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+				if slices.Contains(cidrID.Labels, "reserved:world") {
+					lbls := labels.NewLabelsFromModel(cidrID.Labels)
 					cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 					if len(cidrModel) == 1 {
 						// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
@@ -223,7 +223,7 @@ func runTraffic(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		func(pod *corev1.Pod) map[trafficKey]*trafficValue {
 			result, err := runTrafficOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
 			if err != nil {
-				fmt.Fprintf(stderr, "* %v\n", err)
+				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return result
