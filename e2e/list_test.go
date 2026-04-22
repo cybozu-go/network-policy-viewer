@@ -188,7 +188,12 @@ spec:
       k8s:test: self
   ingress:
   - fromCIDR:
-    - 10.100.0.0/16
+    - 10.100.0.0/24
+    - 10.100.10.0/24
+  - fromCIDRSet:
+    - cidr: 10.120.0.0/16
+      except:
+      - 10.120.0.0/24
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

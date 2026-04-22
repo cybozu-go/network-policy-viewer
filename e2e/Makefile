@@ -9,8 +9,8 @@ HELM := helm --content-cache $(CACHE_DIR)/helm/content
 
 # Avoid using SHA here
 # https://github.com/kubernetes-sigs/kind/issues/4028
-CILIUM_IMAGE := quay.io/cilium/cilium:v1.16.19
-CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.16.19@sha256:7496a278401c221a30d023df4e40c4e97c3c203645b337d332da5f9e887acf06
+CILIUM_IMAGE := quay.io/cilium/cilium:v1.17.15
+CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.17.15@sha256:464dbdb023f9d2fd291efbe2adcf76681e36cc7144ed5fe983058b25cb23a4a5
 
 DEPLOYMENT_REPLICAS ?= 1
 
@@ -89,6 +89,7 @@ install-test-pod:
 	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
+	kubectl apply -f testdata/policy/cidr-group.yaml
 	kubectl apply -f testdata/policy/l3.yaml
 	kubectl apply -f testdata/policy/l4.yaml
 

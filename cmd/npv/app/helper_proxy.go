@@ -25,6 +25,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+type cachedIdentity struct {
+	identity *models.Identity
+	cidr     *net.IPNet
+}
+
 type proxyClient struct {
 	*client.Client
 
@@ -113,7 +118,7 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request version: %w", err)
+		return fmt.Errorf("failed to request /version: %w", err)
 	}
 	defer resp.Body.Close()
 
