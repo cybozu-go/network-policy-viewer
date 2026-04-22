@@ -253,11 +253,11 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 	case 0:
 		return nil, nil
 	case 1:
-		incl, excl, err := cidr.ParseCIDRExpression(expr)
+		s, err := cidr.ParseCIDRExpression(expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse --%s-cidrs: %w", prefix, err)
 		}
-		return proxy.MakeCIDRFilter(ingress, egress, incl, excl), nil
+		return proxy.MakeCIDRFilter(ingress, egress, *s), nil
 	default:
 		return nil, fmt.Errorf("one of --%s-cidrs, --%s-private-cidrs, --%s-public-cidrs can be specified", prefix, prefix, prefix)
 	}

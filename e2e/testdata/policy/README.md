@@ -18,9 +18,16 @@
 | 1.1.1.1 (Cloudflare DNS) | allow (L4) | - |
 | 8.8.8.8 (Google Public DNS) | allow (L4) | - |
 | 8.8.4.4 (Google Public DNS)  | deny (L4) | - |
+| 10.140.0.0/24 | allow (L3) | - |
+| 10.140.10.0/24 | allow (L3) | - |
+| 10.140.20.0/24 | allow (L3) | - |
 
 | Source | To self (Ingress) |
 |-|-|
 | 10.100.0.0/16 | allow (L3) |
+| 10.120.0.0/16 | allow (L3) |
+| - 10.120.0.0/24 | implicit deny (L3) |
+| 10.140.0.0/24 | allow (L3) |
+| 10.140.10.0/24 | allow (L3) |
 | 172.0.0.0/8 | allow (L3) |
 | 192.168.100.0/24 | deny (L4) |

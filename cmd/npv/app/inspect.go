@@ -189,14 +189,18 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 					return nil, err
 				}
 				if inspectOptions.maskCIDRs {
+					private := cidr.PrivateCIDRSet.Overlaps(*c)
+					public := cidr.PublicCIDRSet.Overlaps(*c)
 					var expr string
 					switch {
-					case cidr.IsPrivateCIDR(c):
-						expr = "private"
-					case cidr.IsPublicCIDR(c):
-						expr = "public"
-					default:
+					case private && public:
 						expr = "unknown"
+					case public:
+						expr = "public"
+					case private:
+						expr = "private"
+					default:
+						expr = "none"
 					}
 					entry.Identity = uint32(identity.ReservedIdentityWorld)
 					entry.Example = fmt.Sprintf("cidr:%s", expr)
@@ -272,10 +276,19 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		} else {
 			port = fmt.Sprint(p.Port)
 		}
+		var example any
+		example = p.Example
+		if (rootOptions.output == OutputSimple) && strings.HasPrefix(p.Example, "cidr:") {
+			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
+			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
+			if strings.Contains(p.Example, ",") {
+				example = strings.Split(p.Example, ",")
+			}
+		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		subValues := []any{p.Subject, "|"}
-		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 		if subject.ShouldPrintSubject(name) {
+			subValues := []any{p.Subject, "|"}
 			values = append(subValues, values...)
 		}
 		return values

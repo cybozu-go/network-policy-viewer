@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,12 +18,14 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"golang.org/x/mod/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
@@ -35,10 +38,14 @@ type Config struct {
 type Client struct {
 	*client.Client
 
-	dynamicClient       *dynamic.DynamicClient
-	node                string
-	endpointURL         string
-	cachedIdentityCIDRs map[uint32]*net.IPNet
+	dynamicClient *dynamic.DynamicClient
+	node          string
+	endpointURL   string
+	cidrGroups    map[string][]netip.Prefix
+
+	prefixIdentities []netip.Prefix
+	identityPrefixes map[uint32][]netip.Prefix
+	identityCIDRSets map[uint32]cidr.Set
 }
 
 var (
@@ -46,6 +53,7 @@ var (
 	config              *Config
 
 	proxyMutex          sync.Mutex
+	cachedCIDRGroups    map[string][]netip.Prefix
 	cachedCiliumClients = make(map[string]*Client)
 )
 
@@ -117,9 +125,46 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 	return endpointID, nil
 }
 
+func fetchCIDRGroupsLocked(ctx context.Context, d *dynamic.DynamicClient) error {
+	if cachedCIDRGroups != nil {
+		return nil
+	}
+
+	tmp := make(map[string][]netip.Prefix)
+	resources, err := d.Resource(gvr.CIDRGroup).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, g := range resources.Items {
+		cidrStrings, ok, err := unstructured.NestedStringSlice(g.Object, "spec", "externalCIDRs")
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+
+		cidrs := make([]netip.Prefix, len(cidrStrings))
+		for i, cs := range cidrStrings {
+			c, err := netip.ParsePrefix(cs)
+			if err != nil {
+				return err
+			}
+			cidrs[i] = c
+		}
+		tmp[g.GetName()] = cidrs
+	}
+	cachedCIDRGroups = tmp
+	return nil
+}
+
 func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*Client, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
+
+	if err := fetchCIDRGroupsLocked(ctx, d); err != nil {
+		return nil, err
+	}
 
 	targetNode, err := getPodNodeName(ctx, c, namespace, name)
 	if err != nil {
@@ -140,10 +185,12 @@ func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 		return nil, err
 	}
 	proxy := &Client{
-		Client:        ciliumClient,
-		dynamicClient: d,
-		node:          targetNode,
-		endpointURL:   endpoint,
+		Client:           ciliumClient,
+		dynamicClient:    d,
+		node:             targetNode,
+		endpointURL:      endpoint,
+		cidrGroups:       cachedCIDRGroups,
+		identityCIDRSets: make(map[uint32]cidr.Set),
 	}
 	if err := proxy.testAgentVersion(ctx, stderr); err != nil {
 		return nil, err
@@ -240,8 +287,8 @@ func (c *Client) GetEndpointResponse(ctx context.Context, namespace, name string
 	return response, nil
 }
 
-func (c *Client) fetchCIDRIdentities(ctx context.Context) error {
-	if c.cachedIdentityCIDRs != nil {
+func (c *Client) prepareCIDRs(ctx context.Context) error {
+	if c.prefixIdentities != nil {
 		return nil
 	}
 
@@ -250,14 +297,45 @@ func (c *Client) fetchCIDRIdentities(ctx context.Context) error {
 		return err
 	}
 
+	// Example:
+	// - id: 16777218
+	//   labels:
+	//     - cidrgroup:group=test-group
+	//     - cidrgroup:io.cilium.policy.cidrgroupname/cidr-group-1
+	//     - reserved:world
+	// - id: 16777220
+	//   labels:
+	//     - cidr:1.1.1.1/32
+	//     - reserved:world
+
 	var m []models.Identity
 	if err := json.Unmarshal(data, &m); err != nil {
 		return fmt.Errorf("failed to unmarshal /cidr-identities: %w", err)
 	}
 
-	c.cachedIdentityCIDRs = make(map[uint32]*net.IPNet)
+	ip := make(map[uint32][]netip.Prefix)
+	pi := make([]netip.Prefix, 0)
+
+OUTER:
 	for _, id := range m {
 		lbls := labels.NewLabelsFromModel(id.Labels)
+		{
+			groupModel := lbls.GetFromSource(labels.LabelSourceCIDRGroup)
+			for k := range groupModel {
+				if strings.HasPrefix(k, api.LabelPrefixGroupName) {
+					li := strings.Split(k, "/")
+					if len(li) < 2 {
+						return fmt.Errorf("unexpected CIDRGroup label for identity %d", id.ID)
+					}
+
+					name := li[1]
+					ip[uint32(id.ID)] = c.cidrGroups[name]
+					pi = append(pi, c.cidrGroups[name]...)
+					continue OUTER
+				}
+			}
+		}
+
 		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 		if len(cidrModel) != 1 {
 			return fmt.Errorf("unexpected CIDR label for identity %d", id.ID)
@@ -266,26 +344,65 @@ func (c *Client) fetchCIDRIdentities(ctx context.Context) error {
 		if len(parts) != 2 {
 			return fmt.Errorf("failed to parse CIDR label for identity %d", id.ID)
 		}
-		_, cidr, err := net.ParseCIDR(parts[1])
+		cidr, err := netip.ParsePrefix(parts[1])
 		if err != nil {
 			return fmt.Errorf("failed to parse CIDR for identity %d", id.ID)
 		}
 
-		c.cachedIdentityCIDRs[uint32(id.ID)] = cidr
+		ip[uint32(id.ID)] = []netip.Prefix{cidr}
+		pi = append(pi, cidr)
 	}
+	slices.SortFunc(pi, func(x, y netip.Prefix) int {
+		return x.Compare(y)
+	})
+	c.identityPrefixes = ip
+	c.prefixIdentities = pi
 	return nil
 }
 
-func (c *Client) GetCIDRForIdentity(ctx context.Context, id uint32) (*net.IPNet, error) {
-	if err := c.fetchCIDRIdentities(ctx); err != nil {
+func (c *Client) GetCIDRForIdentity(ctx context.Context, id uint32) (*cidr.Set, error) {
+	// Starting with Cilium 1.17, external CIDRs in the ipcache are no longer
+	// exclusive, and the exact identity is determined by LPM. In addition,
+	// multiple CIDRs may be assigned to the same identity.
+	//
+	// To determine which IP addresses belong to a specific identity, we need to
+	// collect all CIDRs for that identity from the ipcache, then exclude CIDRs
+	// associated with other identities that are subsets of those CIDRs.
+	if err := c.prepareCIDRs(ctx); err != nil {
 		return nil, err
 	}
+	if s, ok := c.identityCIDRSets[id]; ok {
+		return &s, nil
+	}
 
-	value, ok := c.cachedIdentityCIDRs[id]
+	incl, ok := c.identityPrefixes[id]
 	if !ok {
 		return nil, fmt.Errorf("failed to find CIDR identity for %d", id)
 	}
-	return value, nil
+
+	excl := make([]netip.Prefix, 0)
+	for _, cidr := range incl {
+		ix, ok := slices.BinarySearchFunc(c.prefixIdentities, cidr, func(x, y netip.Prefix) int {
+			return x.Compare(y)
+		})
+		if !ok {
+			return nil, fmt.Errorf("failed to find CIDR for %d", id)
+		}
+		for i := ix; i < len(c.prefixIdentities); i++ {
+			p := c.prefixIdentities[i]
+			if cidr == p {
+				continue
+			}
+			if !cidr.Contains(p.Addr()) {
+				break
+			}
+			excl = append(excl, p)
+		}
+	}
+
+	ret := cidr.NewSet(cidr.NewArray(incl), cidr.NewArray(excl))
+	c.identityCIDRSets[id] = ret
+	return &ret, nil
 }
 
 func (c *Client) QueryPolicyMap(ctx context.Context, namespace, name string) ([]PolicyEntry, error) {

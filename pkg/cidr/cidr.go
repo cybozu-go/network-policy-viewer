@@ -2,36 +2,64 @@ package cidr
 
 import (
 	"errors"
-	"net"
+	"net/netip"
 	"strings"
 )
 
-var privateCIDRs []*net.IPNet
+var (
+	PrivateCIDRArray Array
+	PrivateCIDRSet   Set
+	PublicCIDRSet    Set
+)
 
 func init() {
-	privateCIDRs, _, _ = ParseCIDRExpression("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+	all := NewArray([]netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/0"),
+	})
+	PrivateCIDRArray = NewArray([]netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("172.16.0.0/12"),
+		netip.MustParsePrefix("192.168.0.0/16"),
+	})
+	PrivateCIDRSet = NewSet(PrivateCIDRArray, Array{})
+	PublicCIDRSet = NewSet(all, PrivateCIDRArray)
+}
+
+func IsSibling(x, y netip.Prefix) bool {
+	if x.Bits() == 0 {
+		return false
+	}
+	if x.Bits() != y.Bits() {
+		return false
+	}
+	x = x.Masked()
+	y = y.Masked()
+	x = netip.PrefixFrom(x.Addr(), x.Bits()-1).Masked()
+	y = netip.PrefixFrom(y.Addr(), y.Bits()-1).Masked()
+	return x == y
+}
+
+func ContainsPrefix(parent, child netip.Prefix) bool {
+	parent = parent.Masked()
+	child = child.Masked()
+	return parent.Contains(child.Addr()) && parent.Bits() <= child.Bits()
 }
 
 // IsChildCIDR reports whether child is contained within parent.
-func IsChildCIDR(parent, child *net.IPNet) bool {
-	if parent == nil || child == nil {
+func IsChildCIDR(parent, child netip.Prefix) bool {
+	if !parent.Contains(child.Addr()) {
 		return false
 	}
-	if !parent.Contains(child.IP) {
-		return false
-	}
-	p, _ := parent.Mask.Size()
-	c, _ := child.Mask.Size()
-	return p <= c
+	return parent.Bits() <= child.Bits()
 }
 
 // ParseCIDRExpression parses a comma-separated CIDR expression into inclusive
 // and exclusive CIDR rules. Rules prefixed with "!" are treated as exclusions.
-func ParseCIDRExpression(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {
-	incl = make([]*net.IPNet, 0)
-	excl = make([]*net.IPNet, 0)
+func ParseCIDRExpression(expr string) (*Set, error) {
+	incl := make([]netip.Prefix, 0)
+	excl := make([]netip.Prefix, 0)
 	if expr == "" {
-		return
+		return nil, nil
 	}
 
 	fields := strings.Split(expr, ",")
@@ -42,9 +70,10 @@ func ParseCIDRExpression(expr string) (incl []*net.IPNet, excl []*net.IPNet, err
 			f = f[1:]
 		}
 
-		var cidr *net.IPNet
-		if _, cidr, err = net.ParseCIDR(f); err != nil {
-			return
+		var cidr netip.Prefix
+		var err error
+		if cidr, err = netip.ParsePrefix(f); err != nil {
+			return nil, err
 		}
 		if not {
 			excl = append(excl, cidr)
@@ -54,27 +83,9 @@ func ParseCIDRExpression(expr string) (incl []*net.IPNet, excl []*net.IPNet, err
 	}
 
 	if len(incl) == 0 {
-		err = errors.New("at least one inclusive CIDR rule should be specified")
+		return nil, errors.New("at least one inclusive CIDR rule should be specified")
 	}
-	return
-}
 
-// IsPrivateCIDR reports whether the given CIDR block is contained within an RFC 1918 private CIDR range.
-func IsPrivateCIDR(c *net.IPNet) bool {
-	for _, p := range privateCIDRs {
-		if IsChildCIDR(p, c) {
-			return true
-		}
-	}
-	return false
-}
-
-// IsPublicCIDR reports whether the given CIDR block does not overlap any RFC 1918 private CIDR range.
-func IsPublicCIDR(c *net.IPNet) bool {
-	for _, p := range privateCIDRs {
-		if IsChildCIDR(c, p) || IsChildCIDR(p, c) {
-			return false
-		}
-	}
-	return true
+	ret := NewSet(NewArray(incl), NewArray(excl))
+	return &ret, nil
 }

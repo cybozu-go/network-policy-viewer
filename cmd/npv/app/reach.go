@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
@@ -168,7 +169,16 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		} else {
 			port = fmt.Sprint(p.Port)
 		}
+		var example any
+		example = p.Example
+		if (rootOptions.output == OutputSimple) && strings.HasPrefix(p.Example, "cidr:") {
+			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
+			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
+			if strings.Contains(p.Example, ",") {
+				example = strings.Split(p.Example, ",")
+			}
+		}
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
 	})
 }

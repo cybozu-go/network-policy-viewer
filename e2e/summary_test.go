@@ -9,8 +9,8 @@ import (
 )
 
 func testSummary() {
-	expected := `self,3,1,17,8
-self,3,1,17,8
+	expected := `self,5,1,19,8
+self,5,1,19,8
 l3-egress-explicit-deny-all,1,0,0,0
 l3-egress-implicit-deny-all,1,0,0,0
 l3-ingress-explicit-allow-all,2,0,0,0

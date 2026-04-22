@@ -90,6 +90,7 @@ install-test-pod:
 	$(MAKE) --no-print-directory DEPLOYMENT_REPLICAS=2 NAMESPACE=test-l3 run-test-pod-l3-ingress-explicit-allow-all
 	$(MAKE) --no-print-directory wait-for-workloads
 
+	kubectl apply -f testdata/policy/cidr-group.yaml
 	kubectl apply -f testdata/policy/l3.yaml
 	kubectl apply -f testdata/policy/l4.yaml
 
@@ -102,8 +103,10 @@ install-policy-viewer:
 	kubectl exec $${PODNAME} -- /tmp/onboard; \
 	kubectl cp $(POLICY_VIEWER) $${PODNAME}:/tmp/; \
 	kubectl exec $${PODNAME} -- chmod +x /tmp/npv; \
-	kubectl cp $$(aqua which kubectl) $${PODNAME}:/tmp/; \
-	kubectl exec $${PODNAME} -- chmod +x /tmp/kubectl
+	kubectl cp $$(aqua which kubectl) $${PODNAME}:/tmp/kubectl; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/kubectl; \
+	kubectl cp $$(aqua which yq) $${PODNAME}:/tmp/yq; \
+	kubectl exec $${PODNAME} -- chmod +x /tmp/yq
 
 .PHONY: pilot
 pilot:
