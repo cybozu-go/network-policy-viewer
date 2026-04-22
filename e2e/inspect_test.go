@@ -13,6 +13,68 @@ func testInspect() {
 		ExtraArgs []string
 		Expected  string
 	}{
+		// npv inspect should report result for each pod
+		// selectors are sorted alphabetically
+		{
+			Selector: "test=l3-egress-explicit-deny-all",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l3-egress-implicit-deny-all",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l3-ingress-explicit-allow-all",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0
+Allow,Ingress,self,true,true,0,0`,
+		},
+		{
+			Selector: "test=l3-ingress-explicit-deny-all",
+			Expected: `Deny,Ingress,self,true,true,0,0
+Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l3-ingress-implicit-deny-all",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l4-egress-explicit-deny-any",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l4-egress-explicit-deny-tcp",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l4-ingress-all-allow-tcp",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0
+Allow,Ingress,reserved:host,false,false,6,8000
+Allow,Ingress,reserved:unknown,false,false,6,8000`,
+		},
+		{
+			Selector: "test=l4-ingress-explicit-allow-any",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0
+Allow,Ingress,self,false,false,6,53
+Allow,Ingress,self,false,false,17,53
+Allow,Ingress,self,false,false,132,53`,
+		},
+		{
+			Selector: "test=l4-ingress-explicit-allow-tcp",
+			Expected: `Allow,Ingress,reserved:host,true,true,0,0
+Allow,Ingress,self,false,false,6,8000`,
+		},
+		{
+			Selector: "test=l4-ingress-explicit-deny-any",
+			Expected: `Deny,Ingress,self,false,false,6,53
+Deny,Ingress,self,false,false,17,53
+Deny,Ingress,self,false,false,132,53
+Allow,Ingress,reserved:host,true,true,0,0`,
+		},
+		{
+			Selector: "test=l4-ingress-explicit-deny-udp",
+			Expected: `Deny,Ingress,self,false,false,17,161
+Allow,Ingress,reserved:host,true,true,0,0`,
+		},
 		{
 			Selector: "test=self",
 			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
@@ -43,6 +105,22 @@ Allow,Egress,l4-ingress-explicit-deny-any,false,false,6,53
 Allow,Egress,l4-ingress-explicit-deny-any,false,false,17,53
 Allow,Egress,l4-ingress-explicit-deny-any,false,false,132,53
 Allow,Egress,l4-ingress-explicit-deny-udp,false,false,17,161`,
+		},
+		// npv inspect should handle --with-cidrs
+		{
+			Selector:  "test=self",
+			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0"},
+			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
+Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
+Deny,Egress,cidr:8.8.4.4/32,false,false,132,53
+Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Egress,cidr:1.1.1.1/32,false,false,6,53
+Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
+Allow,Egress,cidr:1.1.1.1/32,false,false,132,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
+Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
 		{
 			Selector:  "test=self",
@@ -95,81 +173,40 @@ Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
 		},
-		{
-			Selector:  "test=l4-ingress-explicit-allow-tcp",
-			ExtraArgs: []string{"--used"},
-			Expected:  `Allow,Ingress,self,false,false,6,8000`,
-		},
-		{
-			Selector:  "test=l4-ingress-explicit-deny-udp",
-			ExtraArgs: []string{"--denied", "--unused"},
-			Expected:  `Deny,Ingress,self,false,false,17,161`,
-		},
-		{
-			Selector: "test=l3-ingress-explicit-allow-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,self,true,true,0,0`,
-		},
-		{
-			Selector: "test=l3-ingress-implicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l3-ingress-explicit-deny-all",
-			Expected: `Deny,Ingress,self,true,true,0,0
-Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l3-egress-implicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l3-egress-explicit-deny-all",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l4-ingress-explicit-allow-any",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,self,false,false,6,53
-Allow,Ingress,self,false,false,17,53
-Allow,Ingress,self,false,false,132,53`,
-		},
-		{
-			Selector: "test=l4-ingress-explicit-allow-tcp",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,self,false,false,6,8000`,
-		},
-		{
-			Selector: "test=l4-ingress-explicit-deny-any",
-			Expected: `Deny,Ingress,self,false,false,6,53
-Deny,Ingress,self,false,false,17,53
-Deny,Ingress,self,false,false,132,53
-Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l4-ingress-explicit-deny-udp",
-			Expected: `Deny,Ingress,self,false,false,17,161
-Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l4-egress-explicit-deny-any",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l4-egress-explicit-deny-tcp",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0`,
-		},
-		{
-			Selector: "test=l4-ingress-all-allow-tcp",
-			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,reserved:host,false,false,6,8000
-Allow,Ingress,reserved:unknown,false,false,6,8000`,
-		},
+		// npv inspect should handle reserved:unknown
 		{
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			ExtraArgs: []string{"--with-cidrs=0.0.0.0/0"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
+		{
+			Selector:  "test=l4-ingress-all-allow-tcp",
+			ExtraArgs: []string{"--with-cidrs=10.0.0.0/8"},
+			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
+		},
+		{
+			Selector:  "test=l4-ingress-all-allow-tcp",
+			ExtraArgs: []string{"--with-public-cidrs"},
+			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
+		},
+		{
+			Selector:  "test=l4-ingress-all-allow-tcp",
+			ExtraArgs: []string{"--with-private-cidrs"},
+			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
+		},
+		// npv inspect should handle --used
+		{
+			Selector:  "test=l4-ingress-explicit-allow-tcp",
+			ExtraArgs: []string{"--used"},
+			Expected:  `Allow,Ingress,self,false,false,6,8000`,
+		},
+		// npv inspect should handle --unused
+		{
+			Selector:  "test=l4-ingress-explicit-deny-udp",
+			ExtraArgs: []string{"--denied", "--unused"},
+			Expected:  `Deny,Ingress,self,false,false,17,161`,
+		},
+		// npv inspect should handle --used without pod name
 		{
 			ExtraArgs: []string{"--used"},
 			Expected: `Allow,Ingress,self,true,true,0,0
