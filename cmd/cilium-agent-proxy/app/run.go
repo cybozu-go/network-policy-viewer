@@ -45,7 +45,7 @@ func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
 }
 
-func handleCIDRIdentites(w http.ResponseWriter, r *http.Request) {
+func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 	url := "http://localhost/v1/identity"
 	resp, err := socketClient.Get(url)
 	if err != nil {
@@ -164,7 +164,7 @@ func subMain() error {
 	}
 
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
-	http.HandleFunc("/cidr-identities", handleCIDRIdentites)
+	http.HandleFunc("/cidr-identities", handleCIDRIdentities)
 	http.HandleFunc("/policy/", handlePolicy)
 	http.HandleFunc("/version", handleVersion)
 

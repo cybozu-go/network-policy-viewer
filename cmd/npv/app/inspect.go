@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
 	"sort"
 	"strings"
 
 	"github.com/cilium/cilium/pkg/identity"
-	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -160,17 +158,11 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				entry.Example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
+				cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
-				if slices.Contains(cidrID.Labels, "reserved:world") {
-					lbls := labels.NewLabelsFromModel(cidrID.Labels)
-					cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
-					if len(cidrModel) == 1 {
-						entry.Example = cidrModel[0]
-					}
-				}
+				entry.Example = "cidr:" + cidr.String()
 			}
 		}
 		entry.Identity = p.Key.Identity

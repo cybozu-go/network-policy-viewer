@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
-	"slices"
 	"sort"
 	"strings"
 
 	"github.com/cilium/cilium/pkg/identity"
-	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -136,38 +133,28 @@ func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
+				cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
-				if slices.Contains(cidrID.Labels, "reserved:world") {
-					lbls := labels.NewLabelsFromModel(cidrID.Labels)
-					cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
-					if len(cidrModel) == 1 {
-						// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
-						// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
-						k.Identity = uint32(identity.ReservedIdentityWorld)
-						cidr := strings.Split(cidrModel[0], ":")[1]
-						if trafficOptions.unifyExternal {
-							_, c, err := net.ParseCIDR(cidr)
-							if err != nil {
-								return nil, err
-							}
-							switch {
-							case isPrivateCIDR(c):
-								cidr = "private"
-							case isPublicCIDR(c):
-								cidr = "public"
-							default:
-								cidr = "unknown"
-							}
-							k.CIDR = cidr
-							example = fmt.Sprintf("cidr:%s", cidr)
-						} else {
-							k.CIDR = cidr
-							example = cidrModel[0]
-						}
+				// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
+				// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
+				k.Identity = uint32(identity.ReservedIdentityWorld)
+				if trafficOptions.unifyExternal {
+					var expr string
+					switch {
+					case isPrivateCIDR(cidr):
+						expr = "private"
+					case isPublicCIDR(cidr):
+						expr = "public"
+					default:
+						expr = "unknown"
 					}
+					k.CIDR = expr
+					example = fmt.Sprintf("cidr:%s", expr)
+				} else {
+					k.CIDR = cidr.String()
+					example = fmt.Sprintf("cidr:%s", cidr)
 				}
 			}
 		}
