@@ -162,12 +162,12 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 				if idObj.IsReservedIdentity() {
 					entry.Example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
+					cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
 					if err != nil {
 						return err
 					}
-					if slices.Contains(response.Payload.Labels, "reserved:world") {
-						lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+					if slices.Contains(cidrID.Labels, "reserved:world") {
+						lbls := labels.NewLabelsFromModel(cidrID.Labels)
 						cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 						if len(cidrModel) == 1 {
 							entry.Example = cidrModel[0]
@@ -249,12 +249,12 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 				if idObj.IsReservedIdentity() {
 					entry.Example = "reserved:" + idObj.String()
 				} else if idObj.HasLocalScope() {
-					response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
+					cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
 					if err != nil {
 						return err
 					}
-					if slices.Contains(response.Payload.Labels, "reserved:world") {
-						lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+					if slices.Contains(cidrID.Labels, "reserved:world") {
+						lbls := labels.NewLabelsFromModel(cidrID.Labels)
 						cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 						if len(cidrModel) == 1 {
 							entry.Example = cidrModel[0]

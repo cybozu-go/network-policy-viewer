@@ -164,7 +164,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		func(pod *corev1.Pod) map[derivedFromEntry]any {
 			policy, err := runListOnPod(ctx, stderr, clientset, dynamicClient, pod)
 			if err != nil {
-				fmt.Fprintf(stderr, "* %v\n", err)
+				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return policy

@@ -9,11 +9,10 @@ import (
 	"net"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/cilium/cilium/api/v1/client/policy"
+	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ip"
@@ -27,12 +26,17 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+type cachedIdentity struct {
+	identity *models.Identity
+	cidr     *net.IPNet
+}
+
 type proxyClient struct {
 	*client.Client
 
-	node                string
-	endpointURL         string
-	cachedLocalIdentity map[uint32]*policy.GetIdentityIDOK
+	node                 string
+	endpointURL          string
+	cachedCIDRIdentities map[uint32]*cachedIdentity
 }
 
 var (
@@ -105,29 +109,6 @@ func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 	return proxy, nil
 }
 
-func (c *proxyClient) queryLocalIdentity(ctx context.Context, id uint32) (*policy.GetIdentityIDOK, error) {
-	if c.cachedLocalIdentity == nil {
-		c.cachedLocalIdentity = make(map[uint32]*policy.GetIdentityIDOK)
-	}
-
-	if _, ok := c.cachedLocalIdentity[id]; !ok {
-		// If the identity is in the local scope, it is only valid on the reporting node.
-		params := policy.GetIdentityIDParams{
-			Context: ctx,
-			ID:      strconv.FormatInt(int64(id), 10),
-		}
-		response, err := c.Policy.GetIdentityID(&params)
-		switch err {
-		case nil:
-			c.cachedLocalIdentity[id] = response
-		default:
-			err = fmt.Errorf("failed to get identity: %w", err)
-		}
-		return response, err
-	}
-	return c.cachedLocalIdentity[id], nil
-}
-
 func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) error {
 	url := c.endpointURL + "/version"
 	resp, err := http.Get(url)
@@ -154,6 +135,60 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 	}
 
 	return nil
+}
+
+func (c *proxyClient) fetchCIDRIdentities() error {
+	if c.cachedCIDRIdentities == nil {
+		url := c.endpointURL + "/cidr-identities"
+		resp, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("failed to request /cidr-identities: %w", err)
+		}
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read /cidr-identities: %w", err)
+		}
+
+		var m []models.Identity
+		if err := json.Unmarshal(data, &m); err != nil {
+			return fmt.Errorf("failed to unmarshal /cidr-identities: %w", err)
+		}
+
+		c.cachedCIDRIdentities = make(map[uint32]*cachedIdentity)
+		for _, id := range m {
+			lbls := labels.NewLabelsFromModel(id.Labels)
+			cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
+			if len(cidrModel) != 1 {
+				return fmt.Errorf("unexpected CIDR label for identity %d", id.ID)
+			}
+			parts := strings.Split(cidrModel[0], ":")
+			if len(parts) != 2 {
+				return fmt.Errorf("failed to parse CIDR label for identity %d", id.ID)
+			}
+			_, cidr, err := net.ParseCIDR(parts[1])
+			if err != nil {
+				return fmt.Errorf("failed to parse CIDR for identity %d", id.ID)
+			}
+
+			c.cachedCIDRIdentities[uint32(id.ID)] = &cachedIdentity{
+				identity: &id,
+				cidr:     cidr,
+			}
+		}
+	}
+	return nil
+}
+
+func (c *proxyClient) getCIDRIdentity(ctx context.Context, id uint32) (*models.Identity, error) {
+	if err := c.fetchCIDRIdentities(); err != nil {
+		return nil, err
+	}
+
+	value, ok := c.cachedCIDRIdentities[id]
+	if !ok {
+		return nil, fmt.Errorf("failed to found CIDR identity for %d", id)
+	}
+	return value.identity, nil
 }
 
 // For the meanings of the flags, see:
@@ -289,16 +324,16 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
+		cidrID, err := client.getCIDRIdentity(ctx, p.Key.Identity)
 		if err != nil {
 			return false, err
 		}
-		if !slices.Contains(response.Payload.Labels, "reserved:world") {
+		if !slices.Contains(cidrID.Labels, "reserved:world") {
 			return false, nil
 		}
 
 		// Compute leaf CIDR of the identity
-		lbls := labels.NewLabelsFromModel(response.Payload.Labels)
+		lbls := labels.NewLabelsFromModel(cidrID.Labels)
 		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 		if len(cidrModel) != 1 {
 			return false, errors.New("internal error")
