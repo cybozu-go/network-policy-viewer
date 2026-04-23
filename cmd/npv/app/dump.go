@@ -43,11 +43,18 @@ func runDump(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	resp, err := http.Get(proxyEndpoint + fmt.Sprintf("/v1/endpoint/%d", endpointID))
+	url := proxyEndpoint + fmt.Sprintf("/v1/endpoint/%d", endpointID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err

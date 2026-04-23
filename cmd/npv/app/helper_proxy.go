@@ -3,17 +3,15 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/cilium/cilium/api/v1/client/policy"
+	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ip"
@@ -32,7 +30,7 @@ type proxyClient struct {
 
 	node                string
 	endpointURL         string
-	cachedLocalIdentity map[uint32]*policy.GetIdentityIDOK
+	cachedIdentityCIDRs map[uint32]*net.IPNet
 }
 
 var (
@@ -105,39 +103,27 @@ func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 	return proxy, nil
 }
 
-func (c *proxyClient) queryLocalIdentity(ctx context.Context, id uint32) (*policy.GetIdentityIDOK, error) {
-	if c.cachedLocalIdentity == nil {
-		c.cachedLocalIdentity = make(map[uint32]*policy.GetIdentityIDOK)
-	}
-
-	if _, ok := c.cachedLocalIdentity[id]; !ok {
-		// If the identity is in the local scope, it is only valid on the reporting node.
-		params := policy.GetIdentityIDParams{
-			Context: ctx,
-			ID:      strconv.FormatInt(int64(id), 10),
-		}
-		response, err := c.Policy.GetIdentityID(&params)
-		switch err {
-		case nil:
-			c.cachedLocalIdentity[id] = response
-		default:
-			err = fmt.Errorf("failed to get identity: %w", err)
-		}
-		return response, err
-	}
-	return c.cachedLocalIdentity[id], nil
-}
-
 func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) error {
 	url := c.endpointURL + "/version"
-	resp, err := http.Get(url)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to request version: %w", err)
 	}
 	defer resp.Body.Close()
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
 	}
 
 	var result struct {
@@ -154,6 +140,70 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 	}
 
 	return nil
+}
+
+func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
+	if c.cachedIdentityCIDRs != nil {
+		return nil
+	}
+
+	url := c.endpointURL + "/cidr-identities"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to request /cidr-identities: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
+	}
+
+	var m []models.Identity
+	if err := json.Unmarshal(data, &m); err != nil {
+		return fmt.Errorf("failed to unmarshal /cidr-identities: %w", err)
+	}
+
+	c.cachedIdentityCIDRs = make(map[uint32]*net.IPNet)
+	for _, id := range m {
+		lbls := labels.NewLabelsFromModel(id.Labels)
+		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
+		if len(cidrModel) != 1 {
+			return fmt.Errorf("unexpected CIDR label for identity %d", id.ID)
+		}
+		parts := strings.Split(cidrModel[0], ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("failed to parse CIDR label for identity %d", id.ID)
+		}
+		_, cidr, err := net.ParseCIDR(parts[1])
+		if err != nil {
+			return fmt.Errorf("failed to parse CIDR for identity %d", id.ID)
+		}
+
+		c.cachedIdentityCIDRs[uint32(id.ID)] = cidr
+	}
+	return nil
+}
+
+func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.IPNet, error) {
+	if err := c.fetchCIDRIdentities(ctx); err != nil {
+		return nil, err
+	}
+
+	value, ok := c.cachedIdentityCIDRs[id]
+	if !ok {
+		return nil, fmt.Errorf("failed to find CIDR identity for %d", id)
+	}
+	return value, nil
 }
 
 // For the meanings of the flags, see:
@@ -198,7 +248,12 @@ func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynami
 	}
 
 	url = fmt.Sprintf("%s/policy/%d", url, endpointID)
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request policy: %w", err)
 	}
@@ -289,21 +344,7 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		response, err := client.queryLocalIdentity(ctx, p.Key.Identity)
-		if err != nil {
-			return false, err
-		}
-		if !slices.Contains(response.Payload.Labels, "reserved:world") {
-			return false, nil
-		}
-
-		// Compute leaf CIDR of the identity
-		lbls := labels.NewLabelsFromModel(response.Payload.Labels)
-		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
-		if len(cidrModel) != 1 {
-			return false, errors.New("internal error")
-		}
-		_, idCIDR, err := net.ParseCIDR(strings.Split(cidrModel[0], ":")[1])
+		idCIDR, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
 		if err != nil {
 			return false, err
 		}

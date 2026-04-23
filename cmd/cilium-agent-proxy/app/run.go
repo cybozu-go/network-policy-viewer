@@ -8,7 +8,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 const socketPath = "/var/run/cilium/cilium.sock"
@@ -37,36 +39,55 @@ func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
 	buf := new(bytes.Buffer)
 	io.Copy(buf, resp.Body)
 	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
 }
 
-func handleIdentity(w http.ResponseWriter, r *http.Request) {
-	param := r.URL.Path[len("/v1/identity/"):]
-	if len(param) == 0 {
-		renderError(w, r.URL.Path, "failed to read identity", http.StatusBadRequest)
-		return
-	}
-
-	// Convert to number to avoid parameter injection
-	identity, err := strconv.Atoi(param)
-	if err != nil {
-		renderError(w, r.URL.Path, "failed to read identity", http.StatusBadRequest)
-		return
-	}
-
-	url := fmt.Sprintf("http://localhost/v1/identity/%d", identity)
+func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
+	url := "http://localhost/v1/identity"
 	resp, err := socketClient.Get(url)
 	if err != nil {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
-	buf := new(bytes.Buffer)
-	io.Copy(buf, resp.Body)
-	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
+	// https://github.com/cilium/cilium/blob/main/api/v1/models/identity.go
+	type Identity struct {
+		ID     int64    `json:"id,omitempty"`
+		Labels []string `json:"labels,omitempty"`
+	}
+	var ids []Identity
+	{
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			renderError(w, r.URL.Path, "failed to read data", http.StatusInternalServerError)
+			return
+		}
+		if err := json.Unmarshal(data, &ids); err != nil {
+			renderError(w, r.URL.Path, "failed to unmarshal result", http.StatusInternalServerError)
+			return
+		}
+	}
+	ids = slices.DeleteFunc(ids, func(i Identity) bool {
+		// https://docs.cilium.io/en/stable/internals/security-identities/
+		if (1<<24) <= i.ID && i.ID < (1<<25) {
+			return !slices.ContainsFunc(i.Labels, func(l string) bool {
+				return strings.HasPrefix(l, "cidr:")
+			})
+		}
+		return true
+	})
+
+	data, err := json.Marshal(ids)
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to marshal result", http.StatusInternalServerError)
+		return
+	}
+	renderJSON(w, r.URL.Path, data, http.StatusOK)
 }
 
 func handlePolicy(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +166,7 @@ func subMain() error {
 	}
 
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
-	http.HandleFunc("/v1/identity/", handleIdentity)
+	http.HandleFunc("/cidr-identities", handleCIDRIdentities)
 	http.HandleFunc("/policy/", handlePolicy)
 	http.HandleFunc("/version", handleVersion)
 
