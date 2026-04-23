@@ -39,6 +39,7 @@ func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
 	buf := new(bytes.Buffer)
 	io.Copy(buf, resp.Body)
@@ -52,6 +53,7 @@ func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
 	// https://github.com/cilium/cilium/blob/main/api/v1/models/identity.go
 	type Identity struct {
