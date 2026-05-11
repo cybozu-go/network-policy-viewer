@@ -15,8 +15,9 @@ COPY Makefile Makefile
 # Build
 RUN make build-proxy
 
-# Compose the manager container
-FROM scratch
+# ----------------------------------------
+# Build cilium-agent-proxy container
+FROM scratch AS runtime
 LABEL org.opencontainers.image.source=https://github.com/cybozu-go/network-policy-viewer
 
 WORKDIR /
@@ -24,3 +25,18 @@ COPY bin/download/cilium-dbg /
 COPY --from=builder /work/bin/cilium-agent-proxy /
 
 ENTRYPOINT ["/cilium-agent-proxy"]
+
+# ----------------------------------------
+# Generate SBOM
+FROM ghcr.io/cybozu/ubuntu:24.04 AS scanner
+COPY bin/download/syft /usr/local/bin/syft
+RUN --mount=type=bind,from=runtime,source=/,target=/scanroot,readonly \
+    /usr/local/bin/syft dir:/scanroot \
+        --base-path /scanroot \
+        --source-name runtime \
+        -o syft-json=/usr/share/sbom/image.syft.json
+
+# ----------------------------------------
+# Embed SBOM
+FROM runtime
+COPY --from=scanner /usr/share/sbom /usr/share/sbom
