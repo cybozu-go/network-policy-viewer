@@ -95,7 +95,7 @@ func parseDerivedFromEntry(subject, direction string, input []string) derivedFro
 func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[derivedFromEntry]any, error) {
 	policySet := make(map[derivedFromEntry]any)
 
-	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}

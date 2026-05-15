@@ -83,7 +83,7 @@ func lessTrafficEntry(x, y *trafficEntry) bool {
 func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) (map[trafficKey]*trafficValue, error) {
 	traffic := make(map[trafficKey]*trafficValue)
 
-	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -143,10 +143,10 @@ func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 				if trafficOptions.unifyExternal {
 					var expr string
 					switch {
-					case isPrivateCIDR(cidr):
-						expr = "private"
-					case isPublicCIDR(cidr):
-						expr = "public"
+					// case isPrivateCIDR(cidr):
+					// 	expr = "private"
+					// case isPublicCIDR(cidr):
+					// 	expr = "public"
 					default:
 						expr = "unknown"
 					}

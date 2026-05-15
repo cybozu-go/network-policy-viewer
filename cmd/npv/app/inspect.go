@@ -104,7 +104,7 @@ func parseInspectOptions() {
 }
 
 func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
-	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}

@@ -194,6 +194,7 @@ spec:
     - cidr: 10.120.0.0/16
       except:
       - 10.120.0.0/24
+    - cidrGroupRef: test
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

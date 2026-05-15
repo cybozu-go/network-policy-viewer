@@ -33,7 +33,7 @@ spec:
         - cidr: 10.120.0.0/16
           except:
             - 10.120.0.0/24
-        - cidrGroupRef: test
+        - cidrGroupRef: cidr-group-1
   egress:
     - toEndpoints:
         - matchLabels:
@@ -47,6 +47,10 @@ spec:
     - toEndpoints:
         - matchLabels:
             k8s:test: l3-ingress-explicit-deny-all
+    - toCIDRSet:
+        - cidrGroupSelector:
+            matchLabels:
+              group: test-group
   egressDeny:
     - toEndpoints:
         - matchLabels:
