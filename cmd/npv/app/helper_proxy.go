@@ -17,26 +17,79 @@ import (
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
+
+type cidrSet struct {
+	included []*net.IPNet
+	excluded []*net.IPNet
+}
+
+// workaround
+func (c *cidrSet) String() string {
+	// ret := make([]string, 0)
+	// for _, cidr := range c.included {
+	// 	ret = append(ret, cidr.String())
+	// }
+	// for _, cidr := range c.excluded {
+	// 	ret = append(ret, "-"+cidr.String())
+	// }
+	// return strings.Join(ret, "\n")
+	return c.included[0].String()
+}
 
 type proxyClient struct {
 	*client.Client
 
 	node                string
 	endpointURL         string
-	cachedIdentityCIDRs map[uint32]*net.IPNet
+	cachedIdentityCIDRs map[uint32]cidrSet
+	cachedCIDRGroups    map[string][]*net.IPNet
 }
 
 var (
 	proxyMutex          sync.Mutex
+	cachedCIDRGroups    map[string][]*net.IPNet
 	cachedCiliumClients = make(map[string]*proxyClient)
 )
+
+func fetchCIDRGroupsLocked(ctx context.Context, d *dynamic.DynamicClient) error {
+	tmp := make(map[string][]*net.IPNet)
+	if cachedCIDRGroups == nil {
+		resources, err := d.Resource(gvrCiliumCIDRGroup).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+		for _, g := range resources.Items {
+			cidrStrings, ok, err := unstructured.NestedStringSlice(g.Object, "spec", "externalCIDRs")
+			if err != nil {
+				return err
+			}
+			if !ok {
+				continue
+			}
+
+			cidrs := make([]*net.IPNet, len(cidrStrings))
+			for i, cs := range cidrStrings {
+				_, c, err := net.ParseCIDR(cs)
+				if err != nil {
+					return err
+				}
+				cidrs[i] = c
+			}
+			tmp[g.GetName()] = cidrs
+		}
+	}
+	cachedCIDRGroups = tmp
+	return nil
+}
 
 func getPodNodeName(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
 	pod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
@@ -68,9 +121,11 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
 }
 
-func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, namespace, name string) (*proxyClient, error) {
+func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*proxyClient, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
+
+	fetchCIDRGroupsLocked(ctx, d)
 
 	targetNode, err := getPodNodeName(ctx, c, namespace, name)
 	if err != nil {
@@ -91,9 +146,10 @@ func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 		return nil, err
 	}
 	proxy := &proxyClient{
-		Client:      ciliumClient,
-		node:        targetNode,
-		endpointURL: endpoint,
+		Client:           ciliumClient,
+		node:             targetNode,
+		endpointURL:      endpoint,
+		cachedCIDRGroups: cachedCIDRGroups,
 	}
 	if err := proxy.testAgentVersion(ctx, stderr); err != nil {
 		return nil, err
@@ -113,7 +169,7 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request version: %w", err)
+		return fmt.Errorf("failed to request /version: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -173,9 +229,19 @@ func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
 		return fmt.Errorf("failed to unmarshal /cidr-identities: %w", err)
 	}
 
-	c.cachedIdentityCIDRs = make(map[uint32]*net.IPNet)
+	c.cachedIdentityCIDRs = make(map[uint32]cidrSet)
+
+OUTER:
 	for _, id := range m {
 		lbls := labels.NewLabelsFromModel(id.Labels)
+		for k := range lbls {
+			if strings.HasPrefix(k, api.LabelPrefixGroupName) {
+				grpName := strings.Split(k, "/")[1]
+				c.cachedIdentityCIDRs[uint32(id.ID)] = cidrSet{included: c.cachedCIDRGroups[grpName]}
+				continue OUTER
+			}
+		}
+
 		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
 		if len(cidrModel) != 1 {
 			return fmt.Errorf("unexpected CIDR label for identity %d", id.ID)
@@ -189,12 +255,12 @@ func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
 			return fmt.Errorf("failed to parse CIDR for identity %d", id.ID)
 		}
 
-		c.cachedIdentityCIDRs[uint32(id.ID)] = cidr
+		c.cachedIdentityCIDRs[uint32(id.ID)] = cidrSet{included: []*net.IPNet{cidr}}
 	}
 	return nil
 }
 
-func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.IPNet, error) {
+func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*cidrSet, error) {
 	if err := c.fetchCIDRIdentities(ctx); err != nil {
 		return nil, err
 	}
@@ -203,7 +269,7 @@ func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.I
 	if !ok {
 		return nil, fmt.Errorf("failed to find CIDR identity for %d", id)
 	}
-	return value, nil
+	return &value, nil
 }
 
 // For the meanings of the flags, see:
@@ -344,17 +410,17 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		idCIDR, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
-		if err != nil {
-			return false, err
-		}
+		// idCIDR, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
+		// if err != nil {
+		// 	return false, err
+		// }
 
 		// Check
-		for _, cidr := range incl {
-			if isChildCIDR(cidr, idCIDR) || isChildCIDR(idCIDR, cidr) {
-				return true, nil
-			}
-		}
+		// for _, cidr := range incl {
+		// 	if isChildCIDR(cidr, idCIDR) || isChildCIDR(idCIDR, cidr) {
+		// 		return true, nil
+		// 	}
+		// }
 		return false, nil
 	}
 }

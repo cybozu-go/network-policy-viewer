@@ -116,7 +116,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --to or --to-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, stderr, clientset, from.Namespace, from.Name)
+		client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, from.Namespace, from.Name)
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --from or --from-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, stderr, clientset, to.Namespace, to.Name)
+		client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, to.Namespace, to.Name)
 		if err != nil {
 			return err
 		}

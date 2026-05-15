@@ -37,6 +37,12 @@ var gvrClusterwideNetworkPolicy schema.GroupVersionResource = schema.GroupVersio
 	Resource: "ciliumclusterwidenetworkpolicies",
 }
 
+var gvrCiliumCIDRGroup schema.GroupVersionResource = schema.GroupVersionResource{
+	Group:    "cilium.io",
+	Version:  "v2alpha1",
+	Resource: "ciliumcidrgroups",
+}
+
 var gvkNetworkPolicy schema.GroupVersionKind = schema.GroupVersionKind{
 	Group:   "cilium.io",
 	Version: "v2",

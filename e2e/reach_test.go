@@ -99,7 +99,9 @@ Sender,Egress,Deny,l4-egress-explicit-deny-any,false,false,132,53`,
 }
 
 func testReachCIDR() {
-	expectedIngressPrivate := `Receiver,Ingress,Allow,cidr:10.100.0.0/16,true,true,0,0
+	expectedIngressPrivate := `Receiver,Ingress,Allow,cidr:10.100.0.0/24,true,true,0,0
+Receiver,Ingress,Allow,cidr:10.100.10.0/24,true,true,0,0
+Receiver,Ingress,Allow,cidr:10.120.0.0/16,true,true,0,0
 Receiver,Ingress,Deny,cidr:192.168.100.0/24,false,false,6,8080`
 	expectedIngressPublic := ""
 	expectedEgressPrivate := ""

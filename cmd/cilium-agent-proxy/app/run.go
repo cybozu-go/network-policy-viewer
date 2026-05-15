@@ -76,7 +76,7 @@ func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 		// https://docs.cilium.io/en/stable/internals/security-identities/
 		if (1<<24) <= i.ID && i.ID < (1<<25) {
 			return !slices.ContainsFunc(i.Labels, func(l string) bool {
-				return strings.HasPrefix(l, "cidr:")
+				return strings.HasPrefix(l, "cidr:") || strings.HasPrefix(l, "cidrgroup:")
 			})
 		}
 		return true
