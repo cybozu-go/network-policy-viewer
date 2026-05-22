@@ -48,7 +48,7 @@ var listCmd = &cobra.Command{
 	ValidArgsFunction: completePods,
 }
 
-type derivedFromEntry struct {
+type listEntry struct {
 	Subject   string `json:"subject"`
 	Direction string `json:"direction"`
 	Kind      string `json:"kind"`
@@ -56,7 +56,7 @@ type derivedFromEntry struct {
 	Name      string `json:"name"`
 }
 
-func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
+func lessListEntry(x, y *listEntry) bool {
 	ret := strings.Compare(x.Subject, y.Subject)
 	if ret == 0 {
 		ret = strings.Compare(x.Direction, y.Direction)
@@ -73,8 +73,8 @@ func lessDerivedFromEntry(x, y *derivedFromEntry) bool {
 	return ret < 0
 }
 
-func parseDerivedFromEntry(subject, direction string, input []string) derivedFromEntry {
-	val := derivedFromEntry{
+func parseListEntry(subject, direction string, input []string) listEntry {
+	val := listEntry{
 		Subject:   subject,
 		Direction: direction,
 		Namespace: "-",
@@ -92,8 +92,8 @@ func parseDerivedFromEntry(subject, direction string, input []string) derivedFro
 	return val
 }
 
-func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[derivedFromEntry]any, error) {
-	policySet := make(map[derivedFromEntry]any)
+func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[listEntry]any, error) {
+	policySet := make(map[listEntry]any)
 
 	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
 	if err != nil {
@@ -127,7 +127,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
 		for _, rule := range ingressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseDerivedFromEntry(getPodSubject(pod), directionIngress, r)
+				entry := parseListEntry(getPodSubject(pod), directionIngress, r)
 				policySet[entry] = struct{}{}
 			}
 		}
@@ -136,7 +136,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
 		for _, rule := range egressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseDerivedFromEntry(getPodSubject(pod), directionEgress, r)
+				entry := parseListEntry(getPodSubject(pod), directionEgress, r)
 				policySet[entry] = struct{}{}
 			}
 		}
@@ -158,10 +158,10 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 
 	// The same rule appears multiple times in the response, so we need to dedup it
 	policySet := mapNodeReduce(pods,
-		func() map[derivedFromEntry]any {
-			return make(map[derivedFromEntry]any)
+		func() map[listEntry]any {
+			return make(map[listEntry]any)
 		},
-		func(pod *corev1.Pod) map[derivedFromEntry]any {
+		func(pod *corev1.Pod) map[listEntry]any {
 			policy, err := runListOnPod(ctx, stderr, clientset, dynamicClient, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
@@ -169,7 +169,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			}
 			return policy
 		},
-		func(x, y map[derivedFromEntry]any) map[derivedFromEntry]any {
+		func(x, y map[listEntry]any) map[listEntry]any {
 			for k := range y {
 				x[k] = struct{}{}
 			}
@@ -178,7 +178,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	)
 
 	policyList := maps.Keys(policySet)
-	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(policyList, func(i, j int) bool { return lessListEntry(&policyList[i], &policyList[j]) })
 
 	if listOptions.manifests {
 		return listPolicyManifests(ctx, stdout, dynamicClient, policyList)
@@ -200,12 +200,12 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	})
 }
 
-func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynamic.DynamicClient, policyList []derivedFromEntry) error {
+func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynamic.DynamicClient, policyList []listEntry) error {
 	// remove direction info and sort again
 	for i := range policyList {
 		policyList[i].Direction = ""
 	}
-	sort.Slice(policyList, func(i, j int) bool { return lessDerivedFromEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(policyList, func(i, j int) bool { return lessListEntry(&policyList[i], &policyList[j]) })
 
 	var previous types.NamespacedName
 	first := true
