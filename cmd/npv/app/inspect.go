@@ -28,6 +28,7 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
+	addGroupOption(inspectCmd)
 	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	addDirectionOption(inspectCmd)
@@ -67,7 +68,7 @@ type inspectEntry struct {
 	Requests         uint64 `json:"requests"`
 }
 
-func lessInspectEntry(x, y *inspectEntry) bool {
+func compareInspectEntry(x, y *inspectEntry) int {
 	ret := strings.Compare(x.Subject, y.Subject)
 	if ret == 0 {
 		// List Deny first
@@ -89,7 +90,13 @@ func lessInspectEntry(x, y *inspectEntry) bool {
 	if ret == 0 {
 		ret = int(x.Port) - int(y.Port)
 	}
-	return ret < 0
+	return ret
+}
+
+func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
+	x.Bytes += y.Bytes
+	x.Requests += y.Requests
+	return x
 }
 
 func parseInspectOptions() {
@@ -178,6 +185,9 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 }
 
 func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
+	if err := validateGroupOption(); err != nil {
+		return err
+	}
 	parseInspectOptions()
 	basicFilter := makeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
@@ -210,20 +220,17 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
-			return result
+			sort.Slice(result, func(i, j int) bool { return compareInspectEntry(&result[i], &result[j]) < 0 })
+			return compactBy(result, compareInspectEntry, mergeInspectEntry)
 		},
 		func(x, y []inspectEntry) []inspectEntry {
-			if y != nil {
-				x = append(x, y...)
-			}
-			return x
+			return mergeBy(x, y, compareInspectEntry, mergeInspectEntry)
 		},
 	)
-	sort.Slice(arr, func(i, j int) bool { return lessInspectEntry(&arr[i], &arr[j]) })
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	if name == "" {
+	if shouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
@@ -238,7 +245,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
-		if name == "" {
+		if shouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values

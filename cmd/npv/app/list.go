@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,6 +27,7 @@ var listOptions struct {
 }
 
 func init() {
+	addGroupOption(listCmd)
 	addSelectorOption(listCmd)
 	addDirectionOption(listCmd)
 	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
@@ -56,7 +58,7 @@ type listEntry struct {
 	Name      string `json:"name"`
 }
 
-func lessListEntry(x, y *listEntry) bool {
+func compareListEntry(x, y *listEntry) int {
 	ret := strings.Compare(x.Subject, y.Subject)
 	if ret == 0 {
 		ret = strings.Compare(x.Direction, y.Direction)
@@ -70,7 +72,11 @@ func lessListEntry(x, y *listEntry) bool {
 	if ret == 0 {
 		ret = strings.Compare(x.Name, y.Name)
 	}
-	return ret < 0
+	return ret
+}
+
+func mergeListEntry(x, y *listEntry) *listEntry {
+	return x
 }
 
 func parseListEntry(subject, direction string, input []string) listEntry {
@@ -92,7 +98,7 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
-func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (map[listEntry]any, error) {
+func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
 	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
@@ -142,10 +148,16 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		}
 	}
 
-	return policySet, nil
+	policyList := slices.Collect(maps.Keys(policySet))
+	sort.Slice(policyList, func(i, j int) bool { return compareListEntry(&policyList[i], &policyList[j]) < 0 })
+	return policyList, nil
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
+	if err := validateGroupOption(); err != nil {
+		return err
+	}
+
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
@@ -157,11 +169,11 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	}
 
 	// The same rule appears multiple times in the response, so we need to dedup it
-	policySet := mapNodeReduce(pods,
-		func() map[listEntry]any {
-			return make(map[listEntry]any)
+	arr := mapNodeReduce(pods,
+		func() []listEntry {
+			return make([]listEntry, 0)
 		},
-		func(pod *corev1.Pod) map[listEntry]any {
+		func(pod *corev1.Pod) []listEntry {
 			policy, err := runListOnPod(ctx, stderr, clientset, dynamicClient, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
@@ -169,31 +181,26 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			}
 			return policy
 		},
-		func(x, y map[listEntry]any) map[listEntry]any {
-			for k := range y {
-				x[k] = struct{}{}
-			}
-			return x
+		func(x, y []listEntry) []listEntry {
+			return mergeBy(x, y, compareListEntry, mergeListEntry)
 		},
 	)
-
-	policyList := maps.Keys(policySet)
-	sort.Slice(policyList, func(i, j int) bool { return lessListEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(arr, func(i, j int) bool { return compareListEntry(&arr[i], &arr[j]) < 0 })
 
 	if listOptions.manifests {
-		return listPolicyManifests(ctx, stdout, dynamicClient, policyList)
+		return listPolicyManifests(ctx, stdout, dynamicClient, arr)
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"DIRECTION", "|", "KIND", "NAMESPACE", "NAME"}
-	if name == "" {
+	if shouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
-	return writeSimpleOrJson(stdout, policyList, header, len(policyList), func(index int) []any {
-		p := policyList[index]
+	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
+		p := arr[index]
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Direction, "|", p.Kind, p.Namespace, p.Name}
-		if name == "" {
+		if shouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values
@@ -205,7 +212,7 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 	for i := range policyList {
 		policyList[i].Direction = ""
 	}
-	sort.Slice(policyList, func(i, j int) bool { return lessListEntry(&policyList[i], &policyList[j]) })
+	sort.Slice(policyList, func(i, j int) bool { return compareListEntry(&policyList[i], &policyList[j]) < 0 })
 
 	var previous types.NamespacedName
 	first := true

@@ -73,6 +73,7 @@ func (c cidrOptions) isSet() bool {
 }
 
 var commonOptions struct {
+	group    string
 	selector string
 	with     cidrOptions
 }
@@ -107,6 +108,24 @@ func init() {
 	viper.SetEnvPrefix("npv")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+}
+
+func addGroupOption(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&commonOptions.group, "group", "g", "pod", "experimental: merge entries within each subject group (pod, ns, all)")
+}
+
+func validateGroupOption() error {
+	switch {
+	case strings.HasPrefix(commonOptions.group, subjectGroupAll):
+		commonOptions.group = subjectGroupAll
+	case strings.HasPrefix(commonOptions.group, subjectGroupNamespace):
+		commonOptions.group = subjectGroupNamespace
+	case strings.HasPrefix(commonOptions.group, subjectGroupPod):
+		commonOptions.group = subjectGroupPod
+	default:
+		return fmt.Errorf("failed to parse --group: should be one of: all (a), namespace (n), pod (p)")
+	}
+	return nil
 }
 
 func addSelectorOption(cmd *cobra.Command) {

@@ -466,3 +466,51 @@ func mapNodeReduce[T any](pods []*corev1.Pod, initFunc func() T, mapFunc func(*c
 	}
 	return result
 }
+
+func compactBy[T any](x []T, cmp func(*T, *T) int, merge func(*T, *T) *T) []T {
+	ret := make([]T, 0, len(x))
+	if len(x) == 0 {
+		return ret
+	}
+
+	ret = append(ret, x[0])
+	for i := 1; i < len(x); i++ {
+		last := &ret[len(ret)-1]
+		next := &x[i]
+
+		if cmp(last, next) == 0 {
+			ret[len(ret)-1] = *merge(last, next)
+		} else {
+			ret = append(ret, *next)
+		}
+	}
+	return ret
+}
+
+func mergeBy[T any](x, y []T, cmp func(*T, *T) int, merge func(*T, *T) *T) []T {
+	var i, j int
+	ret := make([]T, 0, len(x)+len(y))
+
+	for i < len(x) && j < len(y) {
+		c := cmp(&x[i], &y[j])
+
+		switch {
+		case c < 0:
+			ret = append(ret, x[i])
+			i++
+
+		case c > 0:
+			ret = append(ret, y[j])
+			j++
+
+		default:
+			ret = append(ret, *merge(&x[i], &y[j]))
+			i++
+			j++
+		}
+	}
+
+	ret = append(ret, x[i:]...)
+	ret = append(ret, y[j:]...)
+	return ret
+}
