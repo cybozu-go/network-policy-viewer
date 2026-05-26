@@ -14,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 )
 
 var inspectOptions struct {
@@ -29,11 +31,11 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "experimental: mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
 	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	addDirectionOption(inspectCmd)
-	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	rootCmd.AddCommand(inspectCmd)
 }
 
@@ -156,6 +158,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			}
 		}
 		entry.Example = "-"
+		entry.Identity = p.Key.Identity
 		example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
 		if err != nil {
 			return nil, err
@@ -167,14 +170,27 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				entry.Example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
+				c, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
-				entry.Example = "cidr:" + cidr.String()
+				if inspectOptions.maskCIDRs {
+					var expr string
+					switch {
+					case cidr.IsPrivateCIDR(c):
+						expr = "private"
+					case cidr.IsPublicCIDR(c):
+						expr = "public"
+					default:
+						expr = "unknown"
+					}
+					entry.Identity = uint32(identity.ReservedIdentityWorld)
+					entry.Example = fmt.Sprintf("cidr:%s", expr)
+				} else {
+					entry.Example = "cidr:" + c.String()
+				}
 			}
 		}
-		entry.Identity = p.Key.Identity
 		entry.WildcardProtocol = p.IsWildcardProtocol()
 		entry.WildcardPort = p.IsWildcardPort()
 		entry.Protocol = p.GetProtocol()
