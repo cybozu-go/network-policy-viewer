@@ -31,7 +31,7 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "experimental: mask cluster-external CIDRs and unify them into public, private, and unknown")
+	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
 	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
