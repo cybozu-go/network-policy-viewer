@@ -115,12 +115,12 @@ func addGroupOption(cmd *cobra.Command) {
 }
 
 func validateGroupOption() error {
-	switch {
-	case strings.HasPrefix(commonOptions.group, subjectGroupAll):
+	switch commonOptions.group {
+	case "a", "all":
 		commonOptions.group = subjectGroupAll
-	case strings.HasPrefix(commonOptions.group, subjectGroupNamespace):
+	case "n", "ns", "namespace", "namespaces":
 		commonOptions.group = subjectGroupNamespace
-	case strings.HasPrefix(commonOptions.group, subjectGroupPod):
+	case "p", "po", "pod", "pods":
 		commonOptions.group = subjectGroupPod
 	default:
 		return fmt.Errorf("failed to parse --group: should be one of: all (a), namespace (n), pod (p)")

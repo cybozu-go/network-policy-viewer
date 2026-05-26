@@ -3,9 +3,9 @@ package app
 import "k8s.io/apimachinery/pkg/runtime/schema"
 
 const (
-	subjectGroupAll       = "a" // all
-	subjectGroupNamespace = "n" // namespace, ns
-	subjectGroupPod       = "p" // pod, po
+	subjectGroupAll       = "all"
+	subjectGroupNamespace = "namespace"
+	subjectGroupPod       = "pod"
 
 	directionEgress  = "Egress"
 	directionIngress = "Ingress"

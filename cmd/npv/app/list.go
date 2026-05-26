@@ -185,7 +185,6 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			return mergeBy(x, y, compareListEntry, mergeListEntry)
 		},
 	)
-	sort.Slice(arr, func(i, j int) bool { return compareListEntry(&arr[i], &arr[j]) < 0 })
 
 	if listOptions.manifests {
 		return listPolicyManifests(ctx, stdout, dynamicClient, arr)
