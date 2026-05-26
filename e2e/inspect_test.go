@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -242,6 +243,7 @@ Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 
 	It("should inspect policy configuration", func() {
 		for _, c := range cases {
+			By(fmt.Sprintf("inspecting %v %v", c.Selector, c.ExtraArgs))
 			args := []string{"inspect", "-o=json", "-n=test"}
 			if c.Selector != "" {
 				podName := onePodByLabelSelector(Default, "test", c.Selector)

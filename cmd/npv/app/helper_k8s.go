@@ -87,6 +87,19 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	return uint32(identity), nil
 }
 
+func shouldPrintSubject(podName string) bool {
+	switch commonOptions.group {
+	case subjectGroupAll:
+		return false
+	case subjectGroupNamespace:
+		return rootOptions.allNamespaces
+	case subjectGroupPod:
+		return podName == ""
+	default:
+		panic("internal error")
+	}
+}
+
 func getSubjectNamespace() string {
 	if rootOptions.allNamespaces {
 		return ""
@@ -95,10 +108,19 @@ func getSubjectNamespace() string {
 }
 
 func getPodSubject(pod *corev1.Pod) string {
-	if rootOptions.allNamespaces {
-		return pod.Namespace + "/" + pod.Name
-	} else {
-		return pod.Name
+	switch commonOptions.group {
+	case subjectGroupAll:
+		return ""
+	case subjectGroupNamespace:
+		return pod.Namespace
+	case subjectGroupPod:
+		if rootOptions.allNamespaces {
+			return pod.Namespace + "/" + pod.Name
+		} else {
+			return pod.Name
+		}
+	default:
+		panic("internal error")
 	}
 }
 
