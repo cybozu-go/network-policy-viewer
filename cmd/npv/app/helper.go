@@ -2,10 +2,8 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"runtime/debug"
 	"slices"
@@ -16,13 +14,10 @@ import (
 )
 
 var (
-	privateCIDRs        []*net.IPNet
 	ciliumModuleVersion string
 )
 
 func init() {
-	privateCIDRs, _, _ = parseCIDRFlag("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
-
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		panic("failed to read build info")
@@ -36,68 +31,6 @@ func init() {
 			break
 		}
 	}
-}
-
-func parseCIDRFlag(expr string) (incl []*net.IPNet, excl []*net.IPNet, err error) {
-	incl = make([]*net.IPNet, 0)
-	excl = make([]*net.IPNet, 0)
-	if expr == "" {
-		return
-	}
-
-	fields := strings.Split(expr, ",")
-	for _, f := range fields {
-		not := false
-		if f[0] == '!' {
-			not = true
-			f = f[1:]
-		}
-
-		var cidr *net.IPNet
-		if _, cidr, err = net.ParseCIDR(f); err != nil {
-			return
-		}
-		if not {
-			excl = append(excl, cidr)
-		} else {
-			incl = append(incl, cidr)
-		}
-	}
-
-	if len(incl) == 0 {
-		err = errors.New("at least one inclusive CIDR rule should be specified")
-	}
-	return
-}
-
-func isChildCIDR(parent, child *net.IPNet) bool {
-	if parent == nil || child == nil {
-		return false
-	}
-	if !parent.Contains(child.IP) {
-		return false
-	}
-	p, _ := parent.Mask.Size()
-	c, _ := child.Mask.Size()
-	return p <= c
-}
-
-func isPrivateCIDR(c *net.IPNet) bool {
-	for _, p := range privateCIDRs {
-		if isChildCIDR(p, c) {
-			return true
-		}
-	}
-	return false
-}
-
-func isPublicCIDR(c *net.IPNet) bool {
-	for _, p := range privateCIDRs {
-		if isChildCIDR(c, p) || isChildCIDR(p, c) {
-			return false
-		}
-	}
-	return true
 }
 
 func formatWithUnits(v uint64) string {

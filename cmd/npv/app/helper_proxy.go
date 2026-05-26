@@ -23,6 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 )
 
 type proxyClient struct {
@@ -350,8 +352,8 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Check
-		for _, cidr := range incl {
-			if isChildCIDR(cidr, idCIDR) || isChildCIDR(idCIDR, cidr) {
+		for _, c := range incl {
+			if cidr.IsChildCIDR(c, idCIDR) || cidr.IsChildCIDR(idCIDR, c) {
 				return true, nil
 			}
 		}

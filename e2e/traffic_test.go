@@ -84,7 +84,7 @@ Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 				Expected: `Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			},
 			{
-				Args:     []string{"-l=test=self", "--with-cidrs=0.0.0.0/0", "--unify-external"},
+				Args:     []string{"-l=test=self", "--with-cidrs=0.0.0.0/0", "--mask-cidrs"},
 				Expected: `Egress,public,cidr:public,false,false,17,53`,
 			},
 			// npv traffic should handle --ingress and --egress

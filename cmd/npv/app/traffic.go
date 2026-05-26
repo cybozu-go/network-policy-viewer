@@ -14,17 +14,19 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 )
 
 var trafficOptions struct {
-	unifyExternal bool
+	maskCIDRs bool
 }
 
 func init() {
 	addSelectorOption(trafficCmd)
 	addWithCIDROptions(trafficCmd)
 	addDirectionOption(trafficCmd)
-	trafficCmd.Flags().BoolVar(&trafficOptions.unifyExternal, "unify-external", false, "unify cluster-external traffic into public, private, and unknown")
+	trafficCmd.Flags().BoolVar(&trafficOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	rootCmd.AddCommand(trafficCmd)
 }
 
@@ -133,19 +135,19 @@ func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
+				c, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
 				// Cilium allocates different identity for a CIDR between nodes, so we cannot use it as a key.
 				// Instead, npv shows traffic as belonging to the world identity and differentiate it using CIDR.
 				k.Identity = uint32(identity.ReservedIdentityWorld)
-				if trafficOptions.unifyExternal {
+				if trafficOptions.maskCIDRs {
 					var expr string
 					switch {
-					case isPrivateCIDR(cidr):
+					case cidr.IsPrivateCIDR(c):
 						expr = "private"
-					case isPublicCIDR(cidr):
+					case cidr.IsPublicCIDR(c):
 						expr = "public"
 					default:
 						expr = "unknown"
@@ -153,8 +155,8 @@ func runTrafficOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 					k.CIDR = expr
 					example = fmt.Sprintf("cidr:%s", expr)
 				} else {
-					k.CIDR = cidr.String()
-					example = fmt.Sprintf("cidr:%s", cidr)
+					k.CIDR = c.String()
+					example = fmt.Sprintf("cidr:%s", c)
 				}
 			}
 		}

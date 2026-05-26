@@ -17,10 +17,11 @@ import (
 )
 
 var inspectOptions struct {
-	allowed bool
-	denied  bool
-	used    bool
-	unused  bool
+	allowed   bool
+	denied    bool
+	used      bool
+	unused    bool
+	maskCIDRs bool
 }
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 	addSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	addDirectionOption(inspectCmd)
+	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	rootCmd.AddCommand(inspectCmd)
 }
 

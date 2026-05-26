@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 )
 
 const (
@@ -162,7 +164,7 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 	case 0:
 		return nil, nil
 	case 1:
-		incl, excl, err := parseCIDRFlag(expr)
+		incl, excl, err := cidr.ParseCIDRExpression(expr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse --%s-cidrs: %w", prefix, err)
 		}
