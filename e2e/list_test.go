@@ -213,6 +213,7 @@ spec:
   ingress:
   - fromCIDR:
     - 10.100.0.0/16
+    - 172.0.0.0/8
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
