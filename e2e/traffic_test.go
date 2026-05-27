@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bufio"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,11 +12,11 @@ import (
 
 func formatTrafficResult(result []byte, amount bool) string {
 	result = fixJsonPodField(Default, result, "example_endpoint")
-	result = jqSafe(Default, result, "-r", `sort_by(.direction, .cidr, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
+	result = jqSafe(Default, result, "-r", `sort_by(.direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
 	if amount {
 		result = jqSafe(Default, result, "-r", `.[] | [.example_endpoint, .bytes] | @csv`)
 	} else {
-		result = jqSafe(Default, result, "-r", `.[] | [.direction, .cidr, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
+		result = jqSafe(Default, result, "-r", `.[] | [.direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 	}
 	return strings.Replace(string(result), `"`, "", -1)
 }
@@ -54,72 +55,73 @@ func testTraffic() {
 		}{
 			{
 				Args:     []string{l3PodName},
-				Expected: `Ingress,,self,true,true,0,0`,
+				Expected: `Ingress,self,true,true,0,0`,
 			},
 			{
 				Args:     []string{l4PodName},
-				Expected: `Ingress,,self,false,false,6,8000`,
+				Expected: `Ingress,self,false,false,6,8000`,
 			},
 			{
 				Args: []string{selfNames[0]},
-				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
-Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
-Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53`,
+				Expected: `Egress,cidr:1.1.1.1/32,false,false,17,53
+Egress,l3-ingress-explicit-allow-all,true,true,0,0
+Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			},
 			{
 				Args: []string{selfNames[1]},
-				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
-Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
-Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+				Expected: `Egress,cidr:8.8.8.8/32,false,false,17,53
+Egress,l3-ingress-explicit-allow-all,true,true,0,0
+Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			},
 			{
 				Args: []string{"-l=test=self"},
-				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
-Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
-Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53
-Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+				Expected: `Egress,cidr:1.1.1.1/32,false,false,17,53
+Egress,cidr:8.8.8.8/32,false,false,17,53
+Egress,l3-ingress-explicit-allow-all,true,true,0,0
+Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			},
 			{
 				Args:     []string{"-l=test=self", "--with-cidrs=8.0.0.0/8"},
-				Expected: `Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+				Expected: `Egress,cidr:8.8.8.8/32,false,false,17,53`,
 			},
 			{
-				Args:     []string{"-l=test=self", "--with-cidrs=0.0.0.0/0", "--unify-external"},
-				Expected: `Egress,public,cidr:public,false,false,17,53`,
+				Args:     []string{"-l=test=self", "--with-cidrs=0.0.0.0/0", "--mask-cidrs"},
+				Expected: `Egress,cidr:public,false,false,17,53`,
 			},
-			// npv traffic should handle --ingress and --egress
+			// npv inspect --used -ga should handle --ingress and --egress
 			{
 				Args: []string{"--ingress"},
-				Expected: `Ingress,,self,false,false,6,8000
-Ingress,,self,true,true,0,0`,
+				Expected: `Ingress,self,false,false,6,8000
+Ingress,self,true,true,0,0`,
 			},
 			{
 				Args: []string{"--egress"},
-				Expected: `Egress,,l3-ingress-explicit-allow-all,true,true,0,0
-Egress,,l4-ingress-explicit-allow-tcp,false,false,6,8000
-Egress,1.1.1.1/32,cidr:1.1.1.1/32,false,false,17,53
-Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
+				Expected: `Egress,cidr:1.1.1.1/32,false,false,17,53
+Egress,cidr:8.8.8.8/32,false,false,17,53
+Egress,l3-ingress-explicit-allow-all,true,true,0,0
+Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			},
 		}
 		for _, c := range cases {
-			args := append([]string{"traffic", "-o=json", "-n=test"}, c.Args...)
+			By(fmt.Sprintf("inspecting %v", c.Args))
+			args := append([]string{"inspect", "--used", "-ga", "-o=json", "-n=test"}, c.Args...)
 			result := runViewerSafe(Default, nil, args...)
 			resultString := formatTrafficResult(result, false)
 			Expect(resultString).To(Equal(c.Expected), "compare failed. args: %v\nactual: %s\nexpected: %s", c.Args, resultString, c.Expected)
 		}
 
-		By("checking npv traffic -l shows combined traffic amount")
+		By("checking npv inspect --used -ga -l shows combined traffic amount")
 		{
-			// Run npv traffic for two self pods separately
-			result := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[0])
+			// Run npv inspect --used -ga for two self pods separately
+			result := runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", selfNames[0])
 			result1 := formatTrafficResult(result, true)
 
-			result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", selfNames[1])
+			result = runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", selfNames[1])
 			result2 := formatTrafficResult(result, true)
 			amount12 := readTraffic(result1 + "\n" + result2)
 
-			// Run npv traffic for two self pods with a label selector
-			result = runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", "-l=test=self")
+			// Run npv inspect --used -ga for two self pods with a label selector
+			result = runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", "-l=test=self")
 			result3 := formatTrafficResult(result, true)
 			amount3 := readTraffic(result3)
 
@@ -127,7 +129,7 @@ Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			Expect(amount12).To(Equal(amount3))
 		}
 
-		By("checking npv traffic --node shows traffic amount per node")
+		By("checking npv inspect --used -ga --node shows traffic amount per node")
 		{
 			data = kubectlSafe(Default, nil, "get", "node", "-o=jsonpath={.items[*].metadata.name}")
 			nodes := strings.Fields(string(data))
@@ -136,19 +138,19 @@ Egress,8.8.8.8/32,cidr:8.8.8.8/32,false,false,17,53`,
 			ceps := strings.Fields(string(data))
 
 			for _, node := range nodes {
-				// Run npv traffic for each pod on a node separately
+				// Run npv inspect --used -ga for each pod on a node separately
 				data = kubectlSafe(Default, nil, "get", "pod", "-A", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}")
 				nodeTestPods := makeIntersection(strings.Fields(string(data)), ceps)
 
 				result := ""
 				for _, p := range nodeTestPods {
-					resultPod := runViewerSafe(Default, nil, "traffic", "-o=json", "-n=test", p)
+					resultPod := runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", p)
 					result = result + "\n" + formatTrafficResult(resultPod, true)
 				}
 				amount := readTraffic(result)
 
-				// Run npv traffic for all the pods on a node
-				result = formatTrafficResult(runViewerSafe(Default, nil, "traffic", "-o=json", "--node="+node, "-l=test"), true)
+				// Run npv inspect --used -ga for all the pods on a node
+				result = formatTrafficResult(runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "--node="+node, "-l=test"), true)
 				amountOnce := readTraffic(result)
 
 				// Check
