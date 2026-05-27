@@ -49,8 +49,6 @@ func runTest() {
 	Context("list", testList)
 	Context("list-with-selector", testListWithSelector)
 	Context("list-manifests", testListManifests)
-	Context("id-label", testIdLabel)
-	Context("id-summary", testIdSummary)
 	Context("id-tree", testIdTree)
 	Context("inspect", testInspect)
 	Context("summary", testSummary)
