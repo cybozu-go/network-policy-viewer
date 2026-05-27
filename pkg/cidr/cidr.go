@@ -12,6 +12,7 @@ func init() {
 	privateCIDRs, _, _ = ParseCIDRExpression("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
 }
 
+// IsChildCIDR reports whether child is contained within parent.
 func IsChildCIDR(parent, child *net.IPNet) bool {
 	if parent == nil || child == nil {
 		return false
