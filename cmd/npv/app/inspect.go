@@ -59,6 +59,7 @@ var inspectCmd = &cobra.Command{
 // https://github.com/cilium/cilium/blob/v1.16.3/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
 	Subject          string `json:"subject"`
+	Node             string `json:"node"`
 	Policy           string `json:"policy"`
 	Direction        string `json:"direction"`
 	Namespace        string `json:"namespace"`
@@ -98,6 +99,16 @@ func compareInspectEntry(x, y *inspectEntry) int {
 }
 
 func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
+	if x.Node != y.Node {
+		x.Node = ""
+		if x.Identity != y.Identity {
+			idObj := identity.NumericIdentity(x.Identity)
+			if idObj.HasLocalScope() {
+				x.Identity = uint32(identity.ReservedIdentityWorld)
+			}
+		}
+	}
+
 	x.Bytes += y.Bytes
 	x.Requests += y.Requests
 	return x
@@ -137,6 +148,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 	for i, p := range policies {
 		var entry inspectEntry
 		entry.Subject = getPodSubject(pod)
+		entry.Node = pod.Spec.NodeName
 		if p.IsDeny() {
 			entry.Policy = policyDeny
 		} else {
