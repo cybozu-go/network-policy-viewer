@@ -28,6 +28,7 @@ func init() {
 	reachCmd.Flags().StringVar(&reachOptions.toCIDR.cidrs, "to-cidrs", "", "destination CIDRs")
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.privateCIDRs, "to-private-cidrs", false, "use private CIDRs as destination (10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)")
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.publicCIDRs, "to-public-cidrs", false, "use public CIDRs as destination (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
+	reachCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	reachCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
 	reachCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
 	rootCmd.AddCommand(reachCmd)

@@ -211,7 +211,9 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		entry.Requests = p.Packets
 		arr[i] = entry
 	}
-	return arr, nil
+
+	sort.Slice(arr, func(i, j int) bool { return compareInspectEntry(&arr[i], &arr[j]) < 0 })
+	return compactBy(arr, compareInspectEntry, mergeInspectEntry), nil
 }
 
 func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
@@ -250,8 +252,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
-			sort.Slice(result, func(i, j int) bool { return compareInspectEntry(&result[i], &result[j]) < 0 })
-			return compactBy(result, compareInspectEntry, mergeInspectEntry)
+			return result
 		},
 		func(x, y []inspectEntry) []inspectEntry {
 			return mergeBy(x, y, compareInspectEntry, mergeInspectEntry)
