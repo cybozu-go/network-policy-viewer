@@ -107,17 +107,17 @@ func getSubjectNamespace() string {
 	return rootOptions.namespace
 }
 
-func getPodSubject(pod *corev1.Pod) string {
+func getPodSubject(namespace, name string) string {
 	switch commonOptions.group {
 	case subjectGroupAll:
 		return ""
 	case subjectGroupNamespace:
-		return pod.Namespace
+		return namespace
 	case subjectGroupPod:
 		if rootOptions.allNamespaces {
-			return pod.Namespace + "/" + pod.Name
+			return namespace + "/" + name
 		} else {
-			return pod.Name
+			return name
 		}
 	default:
 		panic("internal error")

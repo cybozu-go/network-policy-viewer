@@ -133,7 +133,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
 		for _, rule := range ingressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseListEntry(getPodSubject(pod), directionIngress, r)
+				entry := parseListEntry(getPodSubject(pod.Namespace, pod.Name), directionIngress, r)
 				policySet[entry] = struct{}{}
 			}
 		}
@@ -142,7 +142,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
 		for _, rule := range egressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseListEntry(getPodSubject(pod), directionEgress, r)
+				entry := parseListEntry(getPodSubject(pod.Namespace, pod.Name), directionEgress, r)
 				policySet[entry] = struct{}{}
 			}
 		}

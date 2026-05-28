@@ -147,7 +147,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
-		entry.Subject = getPodSubject(pod)
+		entry.Subject = getPodSubject(pod.Namespace, pod.Name)
 		entry.Node = pod.Spec.NodeName
 		if p.IsDeny() {
 			entry.Policy = policyDeny
