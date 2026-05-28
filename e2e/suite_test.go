@@ -46,6 +46,7 @@ func runTest() {
 	Context("agent-node", testAgentNode)
 	Context("agent-pod", testAgentPod)
 	Context("dump", testDump)
+	Context("subject", testSubject)
 	Context("list", testList)
 	Context("list-with-selector", testListWithSelector)
 	Context("list-manifests", testListManifests)
