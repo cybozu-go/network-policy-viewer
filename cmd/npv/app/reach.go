@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 var reachOptions struct {
@@ -83,7 +85,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 
 	// process from-egress
 	if from != nil {
-		var filter policyFilter
+		var filter proxy.PolicyFilter
 
 		switch {
 		case to != nil:
@@ -91,7 +93,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			if err != nil {
 				return err
 			}
-			filter = makeIdentityFilter(false, true, identity)
+			filter = proxy.MakeIdentityFilter(false, true, identity)
 		case reachOptions.toCIDR.isSet():
 			filter, err = parseCIDROptions(false, true, "to", &reachOptions.toCIDR)
 			if err != nil {
@@ -120,7 +122,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 	}
 	// process to-ingress
 	if to != nil {
-		var filter policyFilter
+		var filter proxy.PolicyFilter
 
 		switch {
 		case from != nil:
@@ -128,7 +130,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			if err != nil {
 				return err
 			}
-			filter = makeIdentityFilter(true, false, identity)
+			filter = proxy.MakeIdentityFilter(true, false, identity)
 		case reachOptions.fromCIDR.isSet():
 			filter, err = parseCIDROptions(true, false, "from", &reachOptions.fromCIDR)
 			if err != nil {
