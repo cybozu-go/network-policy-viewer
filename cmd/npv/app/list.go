@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 var listOptions struct {
@@ -100,12 +101,12 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
-	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
-	response, err := client.getEndpointResponse(ctx, pod.Namespace, pod.Name)
+	response, err := client.GetEndpointResponse(ctx, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get endpoint info: %w", err)
 	}

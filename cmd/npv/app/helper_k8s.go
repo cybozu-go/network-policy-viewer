@@ -55,23 +55,6 @@ func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 	return clientset, dynamicClient, nil
 }
 
-func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
-	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return 0, err
-	}
-
-	endpointID, found, err := unstructured.NestedInt64(ep.Object, "status", "id")
-	if err != nil {
-		return 0, err
-	}
-	if !found {
-		return 0, fmt.Errorf("endpoint resource %s/%s is broken", namespace, name)
-	}
-
-	return endpointID, nil
-}
-
 func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (uint32, error) {
 	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {

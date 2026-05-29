@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 const (
@@ -61,6 +62,11 @@ func fillRootOptions(cmd *cobra.Command) error {
 	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
 		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
 	}
+	proxy.SetProxyConfig(&proxy.ProxyConfig{
+		Namespace: rootOptions.proxyNamespace,
+		Selector:  rootOptions.proxySelector,
+		Port:      rootOptions.proxyPort,
+	})
 	return nil
 }
 

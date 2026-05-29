@@ -2,307 +2,26 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"slices"
-	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/cilium/cilium/api/v1/client/endpoint"
-	"github.com/cilium/cilium/api/v1/models"
-	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ip"
-	"github.com/cilium/cilium/pkg/labels"
-	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
-type proxyClient struct {
-	*client.Client
-
-	dynamicClient       *dynamic.DynamicClient
-	node                string
-	endpointURL         string
-	cachedIdentityCIDRs map[uint32]*net.IPNet
-}
-
-var (
-	proxyMutex          sync.Mutex
-	cachedCiliumClients = make(map[string]*proxyClient)
-)
-
-func getPodNodeName(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
-	pod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	return pod.Spec.NodeName, nil
-}
-
-func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
-	targetNode, err := getPodNodeName(ctx, c, namespace, name)
-	if err != nil {
-		return "", err
-	}
-
-	pods, err := c.CoreV1().Pods(rootOptions.proxyNamespace).List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + targetNode,
-		LabelSelector: rootOptions.proxySelector,
-	})
-	if err != nil {
-		return "", err
-	}
-	if num := len(pods.Items); num != 1 {
-		err := fmt.Errorf("failed to find cilium-agent-proxy. found %d pods", num)
-		return "", err
-	}
-
-	podIP := pods.Items[0].Status.PodIP
-	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
-}
-
-func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*proxyClient, error) {
-	proxyMutex.Lock()
-	defer proxyMutex.Unlock()
-
-	targetNode, err := getPodNodeName(ctx, c, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	endpoint, err := getProxyEndpoint(ctx, c, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if cached, ok := cachedCiliumClients[endpoint]; ok {
-		return cached, nil
-	}
-
-	ciliumClient, err := client.NewClient(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	proxy := &proxyClient{
-		Client:        ciliumClient,
-		dynamicClient: d,
-		node:          targetNode,
-		endpointURL:   endpoint,
-	}
-	if err := proxy.testAgentVersion(ctx, stderr); err != nil {
-		return nil, err
-	}
-
-	cachedCiliumClients[endpoint] = proxy
-	return proxy, nil
-}
-
-func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) error {
-	url := c.endpointURL + "/version"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to request version: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
-	}
-
-	var result struct {
-		Cilium string `json:"cilium,omitempty"`
-	}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return err
-	}
-
-	agentVersion := semver.MajorMinor(result.Cilium)
-	moduleVersion := semver.MajorMinor(ciliumModuleVersion)
-	if agentVersion != moduleVersion {
-		fmt.Fprintf(stderr, "Warning: %s is running Cilium %s, but npv is built for %s. Result may be incorrect.\n", c.node, agentVersion, moduleVersion)
-	}
-
-	return nil
-}
-
-func (c *proxyClient) dumpEndpoint(ctx context.Context, namespace, name string) ([]byte, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	url := c.endpointURL + fmt.Sprintf("/v1/endpoint/%d", endpointID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
-}
-
-func (c *proxyClient) getEndpointResponse(ctx context.Context, namespace, name string) (*endpoint.GetEndpointIDOK, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	params := endpoint.GetEndpointIDParams{
-		Context: ctx,
-		ID:      strconv.FormatInt(endpointID, 10),
-	}
-	response, err := c.Endpoint.GetEndpointID(&params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get endpoint information: %w", err)
-	}
-	if response.Payload == nil ||
-		response.Payload.Status == nil ||
-		response.Payload.Status.Policy == nil ||
-		response.Payload.Status.Policy.Realized == nil ||
-		response.Payload.Status.Policy.Realized.L4 == nil ||
-		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
-		response.Payload.Status.Policy.Realized.L4.Egress == nil {
-		return nil, errors.New("api response is insufficient")
-	}
-	return response, nil
-}
-
-func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
-	if c.cachedIdentityCIDRs != nil {
-		return nil
-	}
-
-	url := c.endpointURL + "/cidr-identities"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to request /cidr-identities: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
-	}
-
-	var m []models.Identity
-	if err := json.Unmarshal(data, &m); err != nil {
-		return fmt.Errorf("failed to unmarshal /cidr-identities: %w", err)
-	}
-
-	c.cachedIdentityCIDRs = make(map[uint32]*net.IPNet)
-	for _, id := range m {
-		lbls := labels.NewLabelsFromModel(id.Labels)
-		cidrModel := lbls.GetFromSource(labels.LabelSourceCIDR).GetPrintableModel()
-		if len(cidrModel) != 1 {
-			return fmt.Errorf("unexpected CIDR label for identity %d", id.ID)
-		}
-		parts := strings.Split(cidrModel[0], ":")
-		if len(parts) != 2 {
-			return fmt.Errorf("failed to parse CIDR label for identity %d", id.ID)
-		}
-		_, cidr, err := net.ParseCIDR(parts[1])
-		if err != nil {
-			return fmt.Errorf("failed to parse CIDR for identity %d", id.ID)
-		}
-
-		c.cachedIdentityCIDRs[uint32(id.ID)] = cidr
-	}
-	return nil
-}
-
-func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.IPNet, error) {
-	if err := c.fetchCIDRIdentities(ctx); err != nil {
-		return nil, err
-	}
-
-	value, ok := c.cachedIdentityCIDRs[id]
-	if !ok {
-		return nil, fmt.Errorf("failed to find CIDR identity for %d", id)
-	}
-	return value, nil
-}
-
-func (c *proxyClient) queryPolicyMap(ctx context.Context, namespace, name string) ([]proxy.PolicyEntry, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
-	}
-
-	url := fmt.Sprintf("%s/policy/%d", c.endpointURL, endpointID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to request policy: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	policies := make([]proxy.PolicyEntry, 0)
-	if err = json.Unmarshal(data, &policies); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return policies, nil
-}
-
-type policyFilter func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error)
+type policyFilter func(ctx context.Context, client *proxy.Client, p *proxy.PolicyEntry) (bool, error)
 
 func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policyFilter {
 	if ingress && egress && allowed && denied && used && unused {
 		// no filter
 		return nil
 	}
-	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxy.Client, p *proxy.PolicyEntry) (bool, error) {
 		ret := true
 		switch {
 		case p.IsIngress():
@@ -327,7 +46,7 @@ func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policy
 }
 
 func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
-	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxy.Client, p *proxy.PolicyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -347,7 +66,7 @@ func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
 func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
 	incl = ip.RemoveCIDRs(incl, excl)
 
-	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxy.Client, p *proxy.PolicyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -367,7 +86,7 @@ func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Retrieve identity information
-		idCIDR, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
+		idCIDR, err := client.GetCIDRForIdentity(ctx, p.Key.Identity)
 		if err != nil {
 			return false, err
 		}
@@ -396,7 +115,7 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	case 1:
 		return arr[0]
 	default:
-		return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
+		return func(ctx context.Context, client *proxy.Client, p *proxy.PolicyEntry) (bool, error) {
 			for _, f := range arr {
 				result, err := f(ctx, client, p)
 				if !result || err != nil {
@@ -408,7 +127,7 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	}
 }
 
-func filterPolicyMap(ctx context.Context, client *proxyClient, policies []proxy.PolicyEntry, pred policyFilter) ([]proxy.PolicyEntry, error) {
+func filterPolicyMap(ctx context.Context, client *proxy.Client, policies []proxy.PolicyEntry, pred policyFilter) ([]proxy.PolicyEntry, error) {
 	if pred == nil {
 		return policies, nil
 	}

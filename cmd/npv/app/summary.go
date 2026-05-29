@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 func init() {
@@ -50,12 +52,12 @@ func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 	entry.Namespace = pod.Namespace
 	entry.Name = pod.Name
 
-	client, err := createCiliumClient(ctx, nil, clientset, dynamicClient, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, nil, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	policies, err := client.queryPolicyMap(ctx, pod.Namespace, pod.Name)
+	policies, err := client.QueryPolicyMap(ctx, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
