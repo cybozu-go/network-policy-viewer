@@ -16,8 +16,6 @@ import (
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/labels"
-	"github.com/cilium/cilium/pkg/maps/policymap"
-	"github.com/cilium/cilium/pkg/policy/trafficdirection"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 type proxyClient struct {
@@ -229,37 +228,7 @@ func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.I
 	return value, nil
 }
 
-// For the meanings of the flags, see:
-// https://github.com/cilium/cilium/blob/v1.16.12/bpf/lib/common.h#L396
-type policyEntry struct {
-	policymap.PolicyEntryDump
-}
-
-func (p policyEntry) IsAllow() bool {
-	return !p.IsDeny()
-}
-
-func (p policyEntry) IsIngress() bool {
-	return !p.IsEgress()
-}
-
-func (p policyEntry) IsEgress() bool {
-	return p.Key.TrafficDirection == uint8(trafficdirection.Egress)
-}
-
-func (p policyEntry) GetProtocol() uint8 {
-	return p.Key.Nexthdr
-}
-
-func (p policyEntry) IsWildcardProtocol() bool {
-	return p.Key.Nexthdr == 0
-}
-
-func (p policyEntry) IsWildcardPort() bool {
-	return p.Key.GetDestPort() == 0
-}
-
-func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]policyEntry, error) {
+func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]proxy.PolicyEntry, error) {
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
@@ -282,7 +251,7 @@ func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	policies := make([]policyEntry, 0)
+	policies := make([]proxy.PolicyEntry, 0)
 	if err = json.Unmarshal(data, &policies); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -290,14 +259,14 @@ func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic
 	return policies, nil
 }
 
-type policyFilter func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error)
+type policyFilter func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error)
 
 func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policyFilter {
 	if ingress && egress && allowed && denied && used && unused {
 		// no filter
 		return nil
 	}
-	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
 		ret := true
 		switch {
 		case p.IsIngress():
@@ -322,7 +291,7 @@ func makeBasicFilter(ingress, egress, allowed, denied, used, unused bool) policy
 }
 
 func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
-	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -342,7 +311,7 @@ func makeIdentityFilter(ingress, egress bool, id uint32) policyFilter {
 func makeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) policyFilter {
 	incl = ip.RemoveCIDRs(incl, excl)
 
-	return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
+	return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
 		}
@@ -391,7 +360,7 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	case 1:
 		return arr[0]
 	default:
-		return func(ctx context.Context, client *proxyClient, p *policyEntry) (bool, error) {
+		return func(ctx context.Context, client *proxyClient, p *proxy.PolicyEntry) (bool, error) {
 			for _, f := range arr {
 				result, err := f(ctx, client, p)
 				if !result || err != nil {
@@ -403,14 +372,14 @@ func makeAllFilter(filters ...policyFilter) policyFilter {
 	}
 }
 
-func filterPolicyMap(ctx context.Context, client *proxyClient, policies []policyEntry, pred policyFilter) ([]policyEntry, error) {
+func filterPolicyMap(ctx context.Context, client *proxyClient, policies []proxy.PolicyEntry, pred policyFilter) ([]proxy.PolicyEntry, error) {
 	if pred == nil {
 		return policies, nil
 	}
 
 	// If any error is observed, cancel the remaining work and returns the error
 	var err error
-	policies = slices.DeleteFunc(policies, func(p policyEntry) bool {
+	policies = slices.DeleteFunc(policies, func(p proxy.PolicyEntry) bool {
 		if err != nil {
 			return false
 		}
