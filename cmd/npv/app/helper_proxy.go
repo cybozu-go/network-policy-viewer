@@ -148,7 +148,12 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 	return nil
 }
 
-func (c *proxyClient) dumpEndpoint(ctx context.Context, endpointID int64) ([]byte, error) {
+func (c *proxyClient) dumpEndpoint(ctx context.Context, namespace, name string) ([]byte, error) {
+	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
 	url := c.endpointURL + fmt.Sprintf("/v1/endpoint/%d", endpointID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -169,7 +174,12 @@ func (c *proxyClient) dumpEndpoint(ctx context.Context, endpointID int64) ([]byt
 	return data, nil
 }
 
-func (c *proxyClient) getEndpointResponse(ctx context.Context, endpointID int64) (*endpoint.GetEndpointIDOK, error) {
+func (c *proxyClient) getEndpointResponse(ctx context.Context, namespace, name string) (*endpoint.GetEndpointIDOK, error) {
+	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
 	params := endpoint.GetEndpointIDParams{
 		Context: ctx,
 		ID:      strconv.FormatInt(endpointID, 10),

@@ -31,17 +31,12 @@ func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return err
 	}
 
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, rootOptions.namespace, name)
-	if err != nil {
-		return err
-	}
-
 	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}
 
-	data, err := client.dumpEndpoint(ctx, endpointID)
+	data, err := client.dumpEndpoint(ctx, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}

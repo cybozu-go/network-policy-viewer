@@ -105,12 +105,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, pod.Namespace, pod.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
-	}
-
-	response, err := client.getEndpointResponse(ctx, endpointID)
+	response, err := client.getEndpointResponse(ctx, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get endpoint info: %w", err)
 	}
