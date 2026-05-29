@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net/http"
 
 	"github.com/spf13/cobra"
 )
@@ -22,12 +20,12 @@ var dumpCmd = &cobra.Command{
 
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runDump(context.Background(), cmd.OutOrStdout(), args[0])
+		return runDump(context.Background(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 	},
 	ValidArgsFunction: completePods,
 }
 
-func runDump(ctx context.Context, w io.Writer, name string) error {
+func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return err
@@ -38,30 +36,18 @@ func runDump(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	proxyEndpoint, err := getProxyEndpoint(ctx, clientset, rootOptions.namespace, name)
+	client, err := createCiliumClient(ctx, stderr, clientset, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}
 
-	url := proxyEndpoint + fmt.Sprintf("/v1/endpoint/%d", endpointID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
+	data, err := client.dumpEndpoint(ctx, endpointID)
 	if err != nil {
 		return err
 	}
 
 	var buf bytes.Buffer
 	json.Indent(&buf, data, "", "  ")
-	buf.WriteTo(w)
+	buf.WriteTo(stdout)
 	return nil
 }

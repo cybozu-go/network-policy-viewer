@@ -144,6 +144,27 @@ func (c *proxyClient) testAgentVersion(ctx context.Context, stderr io.Writer) er
 	return nil
 }
 
+func (c *proxyClient) dumpEndpoint(ctx context.Context, endpointID int64) ([]byte, error) {
+	url := c.endpointURL + fmt.Sprintf("/v1/endpoint/%d", endpointID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
 	if c.cachedIdentityCIDRs != nil {
 		return nil
