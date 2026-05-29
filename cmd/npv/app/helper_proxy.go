@@ -32,6 +32,7 @@ import (
 type proxyClient struct {
 	*client.Client
 
+	dynamicClient       *dynamic.DynamicClient
 	node                string
 	endpointURL         string
 	cachedIdentityCIDRs map[uint32]*net.IPNet
@@ -72,7 +73,7 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	return fmt.Sprintf("http://%s:%d", podIP, rootOptions.proxyPort), nil
 }
 
-func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, namespace, name string) (*proxyClient, error) {
+func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*proxyClient, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
 
@@ -95,9 +96,10 @@ func createCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 		return nil, err
 	}
 	proxy := &proxyClient{
-		Client:      ciliumClient,
-		node:        targetNode,
-		endpointURL: endpoint,
+		Client:        ciliumClient,
+		dynamicClient: d,
+		node:          targetNode,
+		endpointURL:   endpoint,
 	}
 	if err := proxy.testAgentVersion(ctx, stderr); err != nil {
 		return nil, err
@@ -252,8 +254,8 @@ func (c *proxyClient) getCIDRForIdentity(ctx context.Context, id uint32) (*net.I
 	return value, nil
 }
 
-func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]proxy.PolicyEntry, error) {
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, namespace, name)
+func (c *proxyClient) queryPolicyMap(ctx context.Context, namespace, name string) ([]proxy.PolicyEntry, error) {
+	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}

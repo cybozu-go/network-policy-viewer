@@ -36,7 +36,7 @@ func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return err
 	}
 
-	client, err := createCiliumClient(ctx, stderr, clientset, rootOptions.namespace, name)
+	client, err := createCiliumClient(ctx, stderr, clientset, dynamicClient, rootOptions.namespace, name)
 	if err != nil {
 		return err
 	}

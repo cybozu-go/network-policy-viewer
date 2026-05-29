@@ -50,12 +50,12 @@ func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 	entry.Namespace = pod.Namespace
 	entry.Name = pod.Name
 
-	client, err := createCiliumClient(ctx, nil, clientset, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, nil, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	policies, err := client.queryPolicyMap(ctx, dynamicClient, pod.Namespace, pod.Name)
+	policies, err := client.queryPolicyMap(ctx, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
