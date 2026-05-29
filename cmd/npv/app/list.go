@@ -2,16 +2,13 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
-	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,22 +110,9 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}
 
-	params := endpoint.GetEndpointIDParams{
-		Context: ctx,
-		ID:      strconv.FormatInt(endpointID, 10),
-	}
-	response, err := client.Endpoint.GetEndpointID(&params)
+	response, err := client.getEndpointResponse(ctx, endpointID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get endpoint information: %w", err)
-	}
-	if response.Payload == nil ||
-		response.Payload.Status == nil ||
-		response.Payload.Status.Policy == nil ||
-		response.Payload.Status.Policy.Realized == nil ||
-		response.Payload.Status.Policy.Realized.L4 == nil ||
-		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
-		response.Payload.Status.Policy.Realized.L4.Egress == nil {
-		return nil, errors.New("api response is insufficient")
+		return nil, fmt.Errorf("failed to get endpoint info: %w", err)
 	}
 
 	if policyOptions.ingress {

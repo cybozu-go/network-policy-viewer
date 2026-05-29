@@ -3,14 +3,17 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/identity"
@@ -162,6 +165,27 @@ func (c *proxyClient) dumpEndpoint(ctx context.Context, endpointID int64) ([]byt
 	}
 
 	return data, nil
+}
+
+func (c *proxyClient) getEndpointResponse(ctx context.Context, endpointID int64) (*endpoint.GetEndpointIDOK, error) {
+	params := endpoint.GetEndpointIDParams{
+		Context: ctx,
+		ID:      strconv.FormatInt(endpointID, 10),
+	}
+	response, err := c.Endpoint.GetEndpointID(&params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get endpoint information: %w", err)
+	}
+	if response.Payload == nil ||
+		response.Payload.Status == nil ||
+		response.Payload.Status.Policy == nil ||
+		response.Payload.Status.Policy.Realized == nil ||
+		response.Payload.Status.Policy.Realized.L4 == nil ||
+		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
+		response.Payload.Status.Policy.Realized.L4.Egress == nil {
+		return nil, errors.New("api response is insufficient")
+	}
+	return response, nil
 }
 
 func (c *proxyClient) fetchCIDRIdentities(ctx context.Context) error {
