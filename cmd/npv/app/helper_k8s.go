@@ -17,6 +17,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
 var (
@@ -54,7 +56,7 @@ func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
 }
 
 func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
-	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return 0, err
 	}
@@ -71,7 +73,7 @@ func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, 
 }
 
 func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (uint32, error) {
-	ep, err := d.Resource(gvrEndpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return 0, err
 	}
@@ -176,7 +178,7 @@ func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[
 		return cachedIdentities, nil
 	}
 
-	li, err := d.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
+	li, err := d.Resource(gvr.Identity).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +202,7 @@ func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[ui
 		return cachedIdentityEndpoints, nil
 	}
 
-	li, err := d.Resource(gvrEndpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	li, err := d.Resource(gvr.Endpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}

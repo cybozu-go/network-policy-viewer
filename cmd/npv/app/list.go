@@ -20,6 +20,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
 var listOptions struct {
@@ -236,13 +238,13 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		isCNP := p.Kind == "CiliumNetworkPolicy"
 		var resource *unstructured.Unstructured
 		if isCNP {
-			cnp, err := dynamicClient.Resource(gvrNetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
+			cnp, err := dynamicClient.Resource(gvr.NetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			resource = cnp
 		} else {
-			ccnp, err := dynamicClient.Resource(gvrClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
+			ccnp, err := dynamicClient.Resource(gvr.ClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
