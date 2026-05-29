@@ -45,14 +45,19 @@ func lessSummaryEntry(x, y *summaryEntry) bool {
 	return ret < 0
 }
 
-func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (summaryEntry, error) {
+func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (*summaryEntry, error) {
 	var entry summaryEntry
 	entry.Namespace = pod.Namespace
 	entry.Name = pod.Name
 
-	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
+	client, err := createCiliumClient(ctx, nil, clientset, pod.Namespace, pod.Name)
 	if err != nil {
-		return entry, err
+		return nil, err
+	}
+
+	policies, err := client.queryPolicyMap(ctx, dynamicClient, pod.Namespace, pod.Name)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, p := range policies {
@@ -67,7 +72,7 @@ func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynam
 			entry.IngressAllow++
 		}
 	}
-	return entry, nil
+	return &entry, nil
 }
 
 func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
@@ -91,7 +96,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
-			return []summaryEntry{entry}
+			return []summaryEntry{*entry}
 		},
 		func(x, y []summaryEntry) []summaryEntry {
 			if len(y) > 0 {

@@ -136,7 +136,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		return nil, err
 	}
 
-	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
+	policies, err := client.queryPolicyMap(ctx, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}

@@ -259,18 +259,13 @@ func (p policyEntry) IsWildcardPort() bool {
 	return p.Key.GetDestPort() == 0
 }
 
-func queryPolicyMap(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]policyEntry, error) {
+func (c *proxyClient) queryPolicyMap(ctx context.Context, dynamicClient *dynamic.DynamicClient, namespace, name string) ([]policyEntry, error) {
 	endpointID, err := getPodEndpointID(ctx, dynamicClient, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}
 
-	url, err := getProxyEndpoint(ctx, clientset, namespace, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get proxy endpoint: %w", err)
-	}
-
-	url = fmt.Sprintf("%s/policy/%d", url, endpointID)
+	url := fmt.Sprintf("%s/policy/%d", c.endpointURL, endpointID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
