@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -29,6 +28,7 @@ func init() {
 	reachCmd.Flags().StringVar(&reachOptions.toCIDR.cidrs, "to-cidrs", "", "destination CIDRs")
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.privateCIDRs, "to-private-cidrs", false, "use private CIDRs as destination (10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)")
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.publicCIDRs, "to-public-cidrs", false, "use public CIDRs as destination (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
+	reachCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	reachCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
 	reachCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
 	rootCmd.AddCommand(reachCmd)
@@ -46,18 +46,8 @@ var reachCmd = &cobra.Command{
 }
 
 type reachEntry struct {
-	Role             string `json:"role"`
-	Direction        string `json:"direction"`
-	Policy           string `json:"policy"`
-	Identity         uint32 `json:"identity"`
-	Namespace        string `json:"namespace"`
-	Example          string `json:"example_endpoint"`
-	WildcardProtocol bool   `json:"wildcard_protocol"`
-	WildcardPort     bool   `json:"wildcard_port"`
-	Protocol         uint8  `json:"protocol"`
-	Port             uint16 `json:"port"`
-	Bytes            uint64 `json:"bytes"`
-	Requests         uint64 `json:"requests"`
+	inspectEntry
+	Role string `json:"role"`
 }
 
 func runReach(ctx context.Context, stdout, stderr io.Writer) error {
@@ -89,11 +79,6 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	ids, err := getIdentityResourceMap(ctx, dynamicClient)
-	if err != nil {
-		return err
-	}
-
 	arr := make([]reachEntry, 0)
 
 	// process from-egress
@@ -116,65 +101,21 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --to or --to-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, stderr, clientset, from.Namespace, from.Name)
+		pod, err := clientset.CoreV1().Pods(from.Namespace).Get(ctx, from.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, from.Namespace, from.Name)
+		rules, err := runInspectOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
 		if err != nil {
 			return err
 		}
-		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
-			return err
-		}
 
-		for _, p := range policies {
-			var entry reachEntry
-			entry.Role = trafficRoleSender
-			entry.Direction = directionEgress
-			if p.IsDeny() {
-				entry.Policy = policyDeny
-			} else {
-				entry.Policy = policyAllow
-			}
-			entry.Namespace = "-"
-			if id, ok := ids[p.Key.Identity]; ok {
-				ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
-				if err != nil {
-					return err
-				}
-				if ok {
-					entry.Namespace = ns
-				}
-			}
-			entry.Example = "-"
-			example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
-			if err != nil {
-				return err
-			}
-			if example != nil {
-				entry.Example = example.GetName()
-			} else {
-				idObj := identity.NumericIdentity(p.Key.Identity)
-				if idObj.IsReservedIdentity() {
-					entry.Example = "reserved:" + idObj.String()
-				} else if idObj.HasLocalScope() {
-					cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
-					if err != nil {
-						return err
-					}
-					entry.Example = "cidr:" + cidr.String()
-				}
-			}
-			entry.Identity = p.Key.Identity
-			entry.WildcardProtocol = p.IsWildcardProtocol()
-			entry.WildcardPort = p.IsWildcardPort()
-			entry.Protocol = p.GetProtocol()
-			entry.Port = p.Key.GetDestPort()
-			entry.Bytes = p.Bytes
-			entry.Requests = p.Packets
-			arr = append(arr, entry)
+		for _, r := range rules {
+			arr = append(arr, reachEntry{
+				inspectEntry: r,
+				Role:         trafficRoleSender,
+			})
 		}
 	}
 	// process to-ingress
@@ -197,65 +138,21 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --from or --from-cidrs must be specified")
 		}
 
-		client, err := createCiliumClient(ctx, stderr, clientset, to.Namespace, to.Name)
+		pod, err := clientset.CoreV1().Pods(to.Namespace).Get(ctx, to.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
-		policies, err := queryPolicyMap(ctx, clientset, dynamicClient, to.Namespace, to.Name)
+		rules, err := runInspectOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
 		if err != nil {
 			return err
 		}
-		if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
-			return err
-		}
 
-		for _, p := range policies {
-			var entry reachEntry
-			entry.Role = trafficRoleReceiver
-			entry.Direction = directionIngress
-			if p.IsDeny() {
-				entry.Policy = policyDeny
-			} else {
-				entry.Policy = policyAllow
-			}
-			entry.Namespace = "-"
-			if id, ok := ids[p.Key.Identity]; ok {
-				ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
-				if err != nil {
-					return err
-				}
-				if ok {
-					entry.Namespace = ns
-				}
-			}
-			entry.Example = "-"
-			example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
-			if err != nil {
-				return err
-			}
-			if example != nil {
-				entry.Example = example.GetName()
-			} else {
-				idObj := identity.NumericIdentity(p.Key.Identity)
-				if idObj.IsReservedIdentity() {
-					entry.Example = "reserved:" + idObj.String()
-				} else if idObj.HasLocalScope() {
-					cidr, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
-					if err != nil {
-						return err
-					}
-					entry.Example = "cidr:" + cidr.String()
-				}
-			}
-			entry.Identity = p.Key.Identity
-			entry.WildcardProtocol = p.IsWildcardProtocol()
-			entry.WildcardPort = p.IsWildcardPort()
-			entry.Protocol = p.GetProtocol()
-			entry.Port = p.Key.GetDestPort()
-			entry.Bytes = p.Bytes
-			entry.Requests = p.Packets
-			arr = append(arr, entry)
+		for _, r := range rules {
+			arr = append(arr, reachEntry{
+				inspectEntry: r,
+				Role:         trafficRoleReceiver,
+			})
 		}
 	}
 

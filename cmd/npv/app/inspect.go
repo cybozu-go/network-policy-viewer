@@ -59,6 +59,7 @@ var inspectCmd = &cobra.Command{
 // https://github.com/cilium/cilium/blob/v1.16.3/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
 	Subject          string `json:"subject"`
+	Node             string `json:"node"`
 	Policy           string `json:"policy"`
 	Direction        string `json:"direction"`
 	Namespace        string `json:"namespace"`
@@ -98,6 +99,16 @@ func compareInspectEntry(x, y *inspectEntry) int {
 }
 
 func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
+	if x.Node != y.Node {
+		x.Node = ""
+		if x.Identity != y.Identity {
+			idObj := identity.NumericIdentity(x.Identity)
+			if idObj.HasLocalScope() {
+				x.Identity = uint32(identity.ReservedIdentityWorld)
+			}
+		}
+	}
+
 	x.Bytes += y.Bytes
 	x.Requests += y.Requests
 	return x
@@ -136,7 +147,8 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
-		entry.Subject = getPodSubject(pod)
+		entry.Subject = getPodSubject(pod.Namespace, pod.Name)
+		entry.Node = pod.Spec.NodeName
 		if p.IsDeny() {
 			entry.Policy = policyDeny
 		} else {
@@ -199,7 +211,9 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		entry.Requests = p.Packets
 		arr[i] = entry
 	}
-	return arr, nil
+
+	sort.Slice(arr, func(i, j int) bool { return compareInspectEntry(&arr[i], &arr[j]) < 0 })
+	return compactBy(arr, compareInspectEntry, mergeInspectEntry), nil
 }
 
 func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
@@ -238,8 +252,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
-			sort.Slice(result, func(i, j int) bool { return compareInspectEntry(&result[i], &result[j]) < 0 })
-			return compactBy(result, compareInspectEntry, mergeInspectEntry)
+			return result
 		},
 		func(x, y []inspectEntry) []inspectEntry {
 			return mergeBy(x, y, compareInspectEntry, mergeInspectEntry)
