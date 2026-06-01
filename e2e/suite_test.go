@@ -46,11 +46,10 @@ func runTest() {
 	Context("agent-node", testAgentNode)
 	Context("agent-pod", testAgentPod)
 	Context("dump", testDump)
+	Context("subject", testSubject)
 	Context("list", testList)
 	Context("list-with-selector", testListWithSelector)
 	Context("list-manifests", testListManifests)
-	Context("id-label", testIdLabel)
-	Context("id-summary", testIdSummary)
 	Context("id-tree", testIdTree)
 	Context("inspect", testInspect)
 	Context("summary", testSummary)
@@ -60,5 +59,4 @@ func runTest() {
 	Context("manifest-range", testManifestRange)
 	Context("reach", testReach)
 	Context("reach-cidr", testReachCIDR)
-	Context("traffic", testTraffic)
 }

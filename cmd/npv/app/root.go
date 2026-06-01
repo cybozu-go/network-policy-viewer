@@ -113,7 +113,7 @@ func init() {
 }
 
 func addGroupOption(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&commonOptions.group, "group", "g", "pod", "experimental: merge entries within each subject group (pod, ns, all)")
+	cmd.Flags().StringVarP(&commonOptions.group, "group", "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
 }
 
 func validateGroupOption() error {

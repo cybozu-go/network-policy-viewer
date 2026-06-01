@@ -121,7 +121,8 @@ Egress,CiliumNetworkPolicy,test,l4-self`,
 }
 
 func testListWithSelector() {
-	expected := `l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+	It("should list applied policies for multiple pods", func() {
+		expected := `l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-allow-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-allow-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-allow-all
 l3-ingress-explicit-allow-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
@@ -131,8 +132,31 @@ l3-ingress-explicit-deny-all,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-deny-all,Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
 l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test,l3-ingress-explicit-deny-all`
 
-	It("should list applied policies for multiple pods", func() {
 		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "-l=test in (l3-ingress-explicit-allow-all,l3-ingress-explicit-deny-all)")
+		result = fixJsonPodField(Default, result, "subject")
+		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
+		resultString := strings.Replace(string(result), `"`, "", -1)
+		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+	})
+
+	It("should group result per namespace", func() {
+		expected := `test,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+test,Egress,CiliumNetworkPolicy,test,l3-self
+test,Egress,CiliumNetworkPolicy,test,l4-self`
+
+		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "--egress", "-g=ns")
+		result = fixJsonPodField(Default, result, "subject")
+		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
+		resultString := strings.Replace(string(result), `"`, "", -1)
+		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+	})
+
+	It("should merge all result", func() {
+		expected := `,Egress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+,Egress,CiliumNetworkPolicy,test,l3-self
+,Egress,CiliumNetworkPolicy,test,l4-self`
+
+		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "--egress", "-g=all")
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.Replace(string(result), `"`, "", -1)
@@ -189,6 +213,7 @@ spec:
   ingress:
   - fromCIDR:
     - 10.100.0.0/16
+    - 172.0.0.0/8
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

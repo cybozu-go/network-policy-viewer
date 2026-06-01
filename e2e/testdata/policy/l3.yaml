@@ -27,7 +27,8 @@ spec:
       k8s:test: self
   ingress:
     - fromCIDR:
-        - 10.100.0.0/16
+        - 10.100.0.0/16 # < 10.0.0.0/8
+        - 172.0.0.0/8   # > 172.16.0.0/12
   egress:
     - toEndpoints:
         - matchLabels:
