@@ -5,33 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"golang.org/x/term"
 )
-
-var (
-	ciliumModuleVersion string
-)
-
-func init() {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		panic("failed to read build info")
-	}
-	for _, d := range info.Deps {
-		if d.Path == "github.com/cilium/cilium" {
-			if d.Replace != nil && d.Replace.Version != "" {
-				ciliumModuleVersion = d.Replace.Version
-			}
-			ciliumModuleVersion = d.Version
-			break
-		}
-	}
-}
 
 func formatWithUnits(v uint64) string {
 	if v < 1024 || !rootOptions.units {

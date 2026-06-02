@@ -11,6 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
 var manifestGenerateOptions struct {
@@ -87,7 +90,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	subResource, err := dynamicClient.Resource(gvrIdentity).Get(ctx, strconv.Itoa(int(subIdentity)), metav1.GetOptions{})
+	subResource, err := dynamicClient.Resource(gvr.Identity).Get(ctx, strconv.Itoa(int(subIdentity)), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -105,7 +108,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	objResource, err := dynamicClient.Resource(gvrIdentity).Get(ctx, strconv.Itoa(int(objIdentity)), metav1.GetOptions{})
+	objResource, err := dynamicClient.Resource(gvr.Identity).Get(ctx, strconv.Itoa(int(objIdentity)), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -132,7 +135,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	}
 
 	var manifest unstructured.Unstructured
-	manifest.SetGroupVersionKind(gvkNetworkPolicy)
+	manifest.SetGroupVersionKind(gvk.NetworkPolicy)
 	manifest.SetNamespace(sub.Namespace)
 	manifest.SetName(policyName)
 	err = unstructured.SetNestedStringMap(manifest.Object, subLabels, "spec", "endpointSelector", "matchLabels")

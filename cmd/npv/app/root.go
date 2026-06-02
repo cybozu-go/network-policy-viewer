@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 const (
@@ -61,6 +62,11 @@ func fillRootOptions(cmd *cobra.Command) error {
 	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
 		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
 	}
+	proxy.SetProxyConfig(&proxy.ProxyConfig{
+		Namespace: rootOptions.proxyNamespace,
+		Selector:  rootOptions.proxySelector,
+		Port:      rootOptions.proxyPort,
+	})
 	return nil
 }
 
@@ -145,7 +151,7 @@ func addWithCIDROptions(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&commonOptions.with.publicCIDRs, "with-public-cidrs", false, "show rules for public CIDRs (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
 }
 
-func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (policyFilter, error) {
+func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (proxy.PolicyFilter, error) {
 	count := 0
 	expr := ""
 	if opts.cidrs != "" {
@@ -168,7 +174,7 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse --%s-cidrs: %w", prefix, err)
 		}
-		return makeCIDRFilter(ingress, egress, incl, excl), nil
+		return proxy.MakeCIDRFilter(ingress, egress, incl, excl), nil
 	default:
 		return nil, fmt.Errorf("one of --%s-cidrs, --%s-private-cidrs, --%s-public-cidrs can be specified", prefix, prefix, prefix)
 	}

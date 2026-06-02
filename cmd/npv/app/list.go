@@ -2,16 +2,13 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
-	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +17,9 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 var listOptions struct {
@@ -101,32 +101,14 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
-	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
-	endpointID, err := getPodEndpointID(ctx, dynamicClient, pod.Namespace, pod.Name)
+	response, err := client.GetEndpointResponse(ctx, pod.Namespace, pod.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
-	}
-
-	params := endpoint.GetEndpointIDParams{
-		Context: ctx,
-		ID:      strconv.FormatInt(endpointID, 10),
-	}
-	response, err := client.Endpoint.GetEndpointID(&params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get endpoint information: %w", err)
-	}
-	if response.Payload == nil ||
-		response.Payload.Status == nil ||
-		response.Payload.Status.Policy == nil ||
-		response.Payload.Status.Policy.Realized == nil ||
-		response.Payload.Status.Policy.Realized.L4 == nil ||
-		response.Payload.Status.Policy.Realized.L4.Ingress == nil ||
-		response.Payload.Status.Policy.Realized.L4.Egress == nil {
-		return nil, errors.New("api response is insufficient")
+		return nil, fmt.Errorf("failed to get endpoint info: %w", err)
 	}
 
 	if policyOptions.ingress {
@@ -236,13 +218,13 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		isCNP := p.Kind == "CiliumNetworkPolicy"
 		var resource *unstructured.Unstructured
 		if isCNP {
-			cnp, err := dynamicClient.Resource(gvrNetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
+			cnp, err := dynamicClient.Resource(gvr.NetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 			resource = cnp
 		} else {
-			ccnp, err := dynamicClient.Resource(gvrClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
+			ccnp, err := dynamicClient.Resource(gvr.ClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}

@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
 var inspectOptions struct {
@@ -125,8 +126,8 @@ func parseInspectOptions() {
 	}
 }
 
-func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter policyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
-	client, err := createCiliumClient(ctx, stderr, clientset, pod.Namespace, pod.Name)
+func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter proxy.PolicyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -136,11 +137,11 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		return nil, err
 	}
 
-	policies, err := queryPolicyMap(ctx, clientset, dynamicClient, pod.Namespace, pod.Name)
+	policies, err := client.QueryPolicyMap(ctx, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
-	if policies, err = filterPolicyMap(ctx, client, policies, filter); err != nil {
+	if policies, err = proxy.FilterPolicyMap(ctx, client, policies, filter); err != nil {
 		return nil, err
 	}
 
@@ -182,7 +183,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 			if idObj.IsReservedIdentity() {
 				entry.Example = "reserved:" + idObj.String()
 			} else if idObj.HasLocalScope() {
-				c, err := client.getCIDRForIdentity(ctx, p.Key.Identity)
+				c, err := client.GetCIDRForIdentity(ctx, p.Key.Identity)
 				if err != nil {
 					return nil, err
 				}
@@ -221,7 +222,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 	parseInspectOptions()
-	basicFilter := makeBasicFilter(
+	basicFilter := proxy.MakeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
 		inspectOptions.allowed, inspectOptions.denied,
 		inspectOptions.used, inspectOptions.unused,
@@ -230,7 +231,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	if err != nil {
 		return err
 	}
-	filter := makeAllFilter(basicFilter, withFilter)
+	filter := proxy.MakeAllFilter(basicFilter, withFilter)
 
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {

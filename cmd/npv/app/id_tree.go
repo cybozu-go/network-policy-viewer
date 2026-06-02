@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
 func init() {
@@ -40,7 +42,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	li, err := dynamicClient.Resource(gvrIdentity).List(ctx, metav1.ListOptions{})
+	li, err := dynamicClient.Resource(gvr.Identity).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
