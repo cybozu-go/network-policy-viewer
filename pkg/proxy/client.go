@@ -58,8 +58,9 @@ func init() {
 		if d.Path == "github.com/cilium/cilium" {
 			if d.Replace != nil && d.Replace.Version != "" {
 				ciliumModuleVersion = d.Replace.Version
+			} else {
+				ciliumModuleVersion = d.Version
 			}
-			ciliumModuleVersion = d.Version
 			break
 		}
 	}
@@ -152,27 +153,40 @@ func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 	return proxy, nil
 }
 
-func (c *Client) testAgentVersion(ctx context.Context, stderr io.Writer) error {
-	url := c.endpointURL + "/version"
+func (c *Client) queryProxy(ctx context.Context, path string) ([]byte, error) {
+	url := c.endpointURL + path
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request version: %w", err)
+		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read HTTP response body: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
+		return nil, fmt.Errorf("unexpected HTTP response status: %d, body: %s", resp.StatusCode, string(data))
+	}
+
+	return data, nil
+}
+
+func (c *Client) testAgentVersion(ctx context.Context, stderr io.Writer) error {
+	if stderr == nil {
+		panic("internal error; stderr is not specified")
+	}
+
+	data, err := c.queryProxy(ctx, "/version")
+	if err != nil {
+		return err
 	}
 
 	var result struct {
@@ -197,24 +211,7 @@ func (c *Client) DumpEndpoint(ctx context.Context, namespace, name string) ([]by
 		return nil, err
 	}
 
-	url := c.endpointURL + fmt.Sprintf("/v1/endpoint/%d", endpointID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return c.queryProxy(ctx, fmt.Sprintf("/v1/endpoint/%d", endpointID))
 }
 
 func (c *Client) GetEndpointResponse(ctx context.Context, namespace, name string) (*endpoint.GetEndpointIDOK, error) {
@@ -248,25 +245,9 @@ func (c *Client) fetchCIDRIdentities(ctx context.Context) error {
 		return nil
 	}
 
-	url := c.endpointURL + "/cidr-identities"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	data, err := c.queryProxy(ctx, "/cidr-identities")
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to request /cidr-identities: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(data))
+		return err
 	}
 
 	var m []models.Identity
@@ -313,21 +294,9 @@ func (c *Client) QueryPolicyMap(ctx context.Context, namespace, name string) ([]
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/policy/%d", c.endpointURL, endpointID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	data, err := c.queryProxy(ctx, fmt.Sprintf("/policy/%d", endpointID))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to request policy: %w", err)
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return nil, err
 	}
 
 	policies := make([]PolicyEntry, 0)

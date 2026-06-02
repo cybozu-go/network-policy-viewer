@@ -47,12 +47,12 @@ func lessSummaryEntry(x, y *summaryEntry) bool {
 	return ret < 0
 }
 
-func runSummaryOnPod(ctx context.Context, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (*summaryEntry, error) {
+func runSummaryOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) (*summaryEntry, error) {
 	var entry summaryEntry
 	entry.Namespace = pod.Namespace
 	entry.Name = pod.Name
 
-	client, err := proxy.CreateCiliumClient(ctx, nil, clientset, dynamicClient, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 			return make([]summaryEntry, 0)
 		},
 		func(pod *corev1.Pod) []summaryEntry {
-			entry, err := runSummaryOnPod(ctx, clientset, dynamicClient, pod)
+			entry, err := runSummaryOnPod(ctx, stderr, clientset, dynamicClient, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
