@@ -32,25 +32,19 @@ const (
 )
 
 var rootOptions struct {
-	namespace      string
-	allNamespaces  bool
-	node           string
-	proxyNamespace string
-	proxySelector  string
-	proxyPort      uint16
-	output         string
-	noHeaders      bool
-	units          bool
-	jobs           int
+	namespace     string
+	allNamespaces bool
+	node          string
+	output        string
+	noHeaders     bool
+	units         bool
+	jobs          int
 }
 
 func fillRootOptions(cmd *cobra.Command) error {
 	rootOptions.namespace = viper.GetString(flagNamespace)
 	rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
 	rootOptions.node = viper.GetString(flagNode)
-	rootOptions.proxyNamespace = viper.GetString(flagProxyNamespace)
-	rootOptions.proxySelector = viper.GetString(flagProxySelector)
-	rootOptions.proxyPort = viper.GetUint16(flagProxyPort)
 	rootOptions.output = viper.GetString(flagOutput)
 	rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
 	rootOptions.units = viper.GetBool(flagUnits)
@@ -62,10 +56,11 @@ func fillRootOptions(cmd *cobra.Command) error {
 	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
 		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
 	}
-	proxy.SetProxyConfig(&proxy.ProxyConfig{
-		Namespace: rootOptions.proxyNamespace,
-		Selector:  rootOptions.proxySelector,
-		Port:      rootOptions.proxyPort,
+
+	proxy.SetConfig(&proxy.Config{
+		Namespace: viper.GetString(flagProxyNamespace),
+		Selector:  viper.GetString(flagProxySelector),
+		Port:      viper.GetUint16(flagProxyPort),
 	})
 	return nil
 }
