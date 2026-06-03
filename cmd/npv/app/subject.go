@@ -32,10 +32,6 @@ var subjectCmd = &cobra.Command{
 }
 
 func runSubject(ctx context.Context, stdout io.Writer, name string) error {
-	if err := validateGroupOption(); err != nil {
-		return err
-	}
-
 	clientset, _, err := createK8sClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
