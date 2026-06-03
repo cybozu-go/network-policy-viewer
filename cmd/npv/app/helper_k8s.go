@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var (
@@ -73,12 +74,12 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 }
 
 func shouldPrintSubject(podName string) bool {
-	switch commonOptions.group {
-	case subjectGroupAll:
+	switch subject.GetGroup() {
+	case subject.GroupAll:
 		return false
-	case subjectGroupNamespace:
+	case subject.GroupNamespace:
 		return rootOptions.allNamespaces
-	case subjectGroupPod:
+	case subject.GroupPod:
 		return podName == ""
 	default:
 		panic("internal error")
@@ -93,12 +94,12 @@ func getSubjectNamespace() string {
 }
 
 func getPodSubject(namespace, name string) string {
-	switch commonOptions.group {
-	case subjectGroupAll:
+	switch subject.GetGroup() {
+	case subject.GroupAll:
 		return ""
-	case subjectGroupNamespace:
+	case subject.GroupNamespace:
 		return namespace
-	case subjectGroupPod:
+	case subject.GroupPod:
 		if rootOptions.allNamespaces {
 			return namespace + "/" + name
 		} else {

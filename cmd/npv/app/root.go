@@ -11,6 +11,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 const (
@@ -69,15 +70,12 @@ func fillRootOptions(cmd *cobra.Command) error {
 
 func fillGroupOptions(cmd *cobra.Command) error {
 	if cmd.Flags().Lookup(flagGroup) != nil {
-		switch commonOptions.group {
-		case "a", "all":
-			commonOptions.group = subjectGroupAll
-		case "n", "ns", "namespace", "namespaces":
-			commonOptions.group = subjectGroupNamespace
-		case "p", "po", "pod", "pods", "":
-			commonOptions.group = subjectGroupPod
-		default:
-			return fmt.Errorf("failed to parse --group: should be one of: pod [p], ns [n], all [a]")
+		group, err := cmd.Flags().GetString(flagGroup)
+		if err != nil {
+			return err
+		}
+		if err := subject.SetGroup(group); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -94,7 +92,6 @@ func (c cidrOptions) isSet() bool {
 }
 
 var commonOptions struct {
-	group    string
 	selector string
 	with     cidrOptions
 }
@@ -143,7 +140,7 @@ func init() {
 }
 
 func addGroupOption(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&commonOptions.group, flagGroup, "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
+	cmd.Flags().StringP(flagGroup, "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
 }
 
 func addSelectorOption(cmd *cobra.Command) {
