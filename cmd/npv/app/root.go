@@ -31,34 +31,22 @@ const (
 	flagUnits          = "units"
 	flagJobs           = "jobs"
 
-	flagGroup = "group"
+	flagGroup       = "group"
+	flagPodSelector = "selector"
 )
 
 var rootOptions struct {
-	namespace     string
-	allNamespaces bool
-	node          string
-	output        string
-	noHeaders     bool
-	units         bool
-	jobs          int
+	output    string
+	noHeaders bool
+	units     bool
+	jobs      int
 }
 
-func fillRootOptions(cmd *cobra.Command) error {
-	rootOptions.namespace = viper.GetString(flagNamespace)
-	rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
-	rootOptions.node = viper.GetString(flagNode)
+func fillRootOptions() error {
 	rootOptions.output = viper.GetString(flagOutput)
 	rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
 	rootOptions.units = viper.GetBool(flagUnits)
 	rootOptions.jobs = viper.GetInt(flagJobs)
-
-	if rootOptions.node != "" {
-		rootOptions.allNamespaces = true
-	}
-	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
-		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
-	}
 
 	proxy.SetConfig(&proxy.Config{
 		Namespace: viper.GetString(flagProxyNamespace),
@@ -91,9 +79,33 @@ func (c cidrOptions) isSet() bool {
 	return c.cidrs != "" || c.privateCIDRs || c.publicCIDRs
 }
 
+func fillSelectorOptions(cmd *cobra.Command) error {
+	config := &subject.SelectorConfig{
+		AllNamespaces: viper.GetBool(flagAllNamespaces),
+		Namespace:     viper.GetString(flagNamespace),
+		Node:          viper.GetString(flagNode),
+	}
+
+	if cmd.Flags().Lookup(flagPodSelector) != nil {
+		v, err := cmd.Flags().GetString(flagPodSelector)
+		if err != nil {
+			return err
+		}
+		config.PodSelector = v
+	}
+
+	if config.Node != "" {
+		config.AllNamespaces = true
+	}
+	if config.AllNamespaces && cmd.Flags().Changed(flagNamespace) {
+		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
+	}
+	subject.SetSelectorConfig(config)
+	return nil
+}
+
 var commonOptions struct {
-	selector string
-	with     cidrOptions
+	with cidrOptions
 }
 
 var policyOptions struct {
@@ -109,10 +121,13 @@ func fillPolicyOptions() {
 }
 
 func fillOptions(cmd *cobra.Command) error {
-	if err := fillRootOptions(cmd); err != nil {
+	if err := fillRootOptions(); err != nil {
 		return err
 	}
 	if err := fillGroupOptions(cmd); err != nil {
+		return err
+	}
+	if err := fillSelectorOptions(cmd); err != nil {
 		return err
 	}
 	fillPolicyOptions()
@@ -144,7 +159,7 @@ func addGroupOption(cmd *cobra.Command) {
 }
 
 func addSelectorOption(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&commonOptions.selector, "selector", "l", "", "specify label constraints")
+	cmd.Flags().StringP(flagPodSelector, "l", "", "specify label constraints")
 }
 
 func addDirectionOption(cmd *cobra.Command) {

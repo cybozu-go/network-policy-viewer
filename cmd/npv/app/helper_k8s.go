@@ -74,11 +74,13 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 }
 
 func shouldPrintSubject(podName string) bool {
+	selector := subject.GetSelectorConfig()
+
 	switch subject.GetGroup() {
 	case subject.GroupAll:
 		return false
 	case subject.GroupNamespace:
-		return rootOptions.allNamespaces
+		return selector.AllNamespaces
 	case subject.GroupPod:
 		return podName == ""
 	default:
@@ -87,20 +89,23 @@ func shouldPrintSubject(podName string) bool {
 }
 
 func getSubjectNamespace() string {
-	if rootOptions.allNamespaces {
+	selector := subject.GetSelectorConfig()
+	if selector.AllNamespaces {
 		return ""
 	}
-	return rootOptions.namespace
+	return selector.Namespace
 }
 
 func getPodSubject(namespace, name string) string {
+	selector := subject.GetSelectorConfig()
+
 	switch subject.GetGroup() {
 	case subject.GroupAll:
 		return ""
 	case subject.GroupNamespace:
 		return namespace
 	case subject.GroupPod:
-		if rootOptions.allNamespaces {
+		if selector.AllNamespaces {
 			return namespace + "/" + name
 		} else {
 			return name
@@ -110,8 +115,10 @@ func getPodSubject(namespace, name string) string {
 	}
 }
 
-func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name, selector string) ([]*corev1.Pod, error) {
-	if (name != "") && (rootOptions.allNamespaces || selector != "") {
+func listSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
+	selector := subject.GetSelectorConfig()
+
+	if (name != "") && (selector.AllNamespaces || selector.PodSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
@@ -124,11 +131,11 @@ func selectSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, nam
 		return []*corev1.Pod{pod}, nil
 	} else {
 		opts := metav1.ListOptions{
-			LabelSelector: selector,
+			LabelSelector: selector.PodSelector,
 		}
-		node := rootOptions.node
+		node := selector.Node
 		if node != "" {
-			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", rootOptions.node).String()
+			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selector.Node).String()
 		}
 
 		return listCiliumManagedPods(ctx, clientset, ns, opts)

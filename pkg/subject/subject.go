@@ -8,8 +8,16 @@ const (
 	GroupPod       = "pod"
 )
 
+type SelectorConfig struct {
+	AllNamespaces bool
+	Namespace     string
+	PodSelector   string
+	Node          string
+}
+
 var (
-	group string
+	group          string
+	selectorConfig *SelectorConfig
 )
 
 func init() {
@@ -33,4 +41,12 @@ func SetGroup(g string) error {
 	}
 	group = g
 	return nil
+}
+
+func GetSelectorConfig() *SelectorConfig {
+	return selectorConfig
+}
+
+func SetSelectorConfig(c *SelectorConfig) {
+	selectorConfig = c
 }
