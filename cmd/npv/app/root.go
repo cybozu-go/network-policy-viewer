@@ -29,28 +29,24 @@ const (
 	flagNoHeaders      = "no-headers"
 	flagUnits          = "units"
 	flagJobs           = "jobs"
+
+	flagGroup = "group"
 )
 
 var rootOptions struct {
-	namespace      string
-	allNamespaces  bool
-	node           string
-	proxyNamespace string
-	proxySelector  string
-	proxyPort      uint16
-	output         string
-	noHeaders      bool
-	units          bool
-	jobs           int
+	namespace     string
+	allNamespaces bool
+	node          string
+	output        string
+	noHeaders     bool
+	units         bool
+	jobs          int
 }
 
 func fillRootOptions(cmd *cobra.Command) error {
 	rootOptions.namespace = viper.GetString(flagNamespace)
 	rootOptions.allNamespaces = viper.GetBool(flagAllNamespaces)
 	rootOptions.node = viper.GetString(flagNode)
-	rootOptions.proxyNamespace = viper.GetString(flagProxyNamespace)
-	rootOptions.proxySelector = viper.GetString(flagProxySelector)
-	rootOptions.proxyPort = viper.GetUint16(flagProxyPort)
 	rootOptions.output = viper.GetString(flagOutput)
 	rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
 	rootOptions.units = viper.GetBool(flagUnits)
@@ -62,11 +58,28 @@ func fillRootOptions(cmd *cobra.Command) error {
 	if rootOptions.allNamespaces && cmd.Flags().Changed(flagNamespace) {
 		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
 	}
-	proxy.SetProxyConfig(&proxy.ProxyConfig{
-		Namespace: rootOptions.proxyNamespace,
-		Selector:  rootOptions.proxySelector,
-		Port:      rootOptions.proxyPort,
+
+	proxy.SetConfig(&proxy.Config{
+		Namespace: viper.GetString(flagProxyNamespace),
+		Selector:  viper.GetString(flagProxySelector),
+		Port:      viper.GetUint16(flagProxyPort),
 	})
+	return nil
+}
+
+func fillGroupOptions(cmd *cobra.Command) error {
+	if cmd.Flags().Lookup(flagGroup) != nil {
+		switch commonOptions.group {
+		case "a", "all":
+			commonOptions.group = subjectGroupAll
+		case "n", "ns", "namespace", "namespaces":
+			commonOptions.group = subjectGroupNamespace
+		case "p", "po", "pod", "pods", "":
+			commonOptions.group = subjectGroupPod
+		default:
+			return fmt.Errorf("failed to parse --group: should be one of: pod [p], ns [n], all [a]")
+		}
+	}
 	return nil
 }
 
@@ -98,6 +111,17 @@ func fillPolicyOptions() {
 	}
 }
 
+func fillOptions(cmd *cobra.Command) error {
+	if err := fillRootOptions(cmd); err != nil {
+		return err
+	}
+	if err := fillGroupOptions(cmd); err != nil {
+		return err
+	}
+	fillPolicyOptions()
+	return nil
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringP(flagNamespace, "n", "default", "namespace of pods")
 	rootCmd.PersistentFlags().BoolP(flagAllNamespaces, "A", false, "show pods across all namespaces")
@@ -119,21 +143,7 @@ func init() {
 }
 
 func addGroupOption(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&commonOptions.group, "group", "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
-}
-
-func validateGroupOption() error {
-	switch commonOptions.group {
-	case "a", "all":
-		commonOptions.group = subjectGroupAll
-	case "n", "ns", "namespace", "namespaces":
-		commonOptions.group = subjectGroupNamespace
-	case "p", "po", "pod", "pods":
-		commonOptions.group = subjectGroupPod
-	default:
-		return fmt.Errorf("failed to parse --group: should be one of: all (a), namespace (n), pod (p)")
-	}
-	return nil
+	cmd.Flags().StringVarP(&commonOptions.group, flagGroup, "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
 }
 
 func addSelectorOption(cmd *cobra.Command) {
@@ -183,15 +193,12 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 var rootCmd = &cobra.Command{
 	Use: "npv",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := fillRootOptions(cmd); err != nil {
-			return err
-		}
-		fillPolicyOptions()
-		return nil
+		return fillOptions(cmd)
 	},
 }
 
 func Execute() {
+	cobra.EnableTraverseRunHooks = true
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

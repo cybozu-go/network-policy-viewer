@@ -136,10 +136,6 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	if err := validateGroupOption(); err != nil {
-		return err
-	}
-
 	clientset, dynamicClient, err := createK8sClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)

@@ -26,7 +26,7 @@ import (
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
-type ProxyConfig struct {
+type Config struct {
 	Namespace string
 	Selector  string
 	Port      uint16
@@ -43,7 +43,7 @@ type Client struct {
 
 var (
 	ciliumModuleVersion string
-	proxyConfig         *ProxyConfig
+	config              *Config
 
 	proxyMutex          sync.Mutex
 	cachedCiliumClients = make(map[string]*Client)
@@ -66,8 +66,8 @@ func init() {
 	}
 }
 
-func SetProxyConfig(config *ProxyConfig) {
-	proxyConfig = config
+func SetConfig(c *Config) {
+	config = c
 }
 
 func getPodNodeName(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
@@ -84,9 +84,9 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 		return "", err
 	}
 
-	pods, err := c.CoreV1().Pods(proxyConfig.Namespace).List(ctx, metav1.ListOptions{
+	pods, err := c.CoreV1().Pods(config.Namespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + targetNode,
-		LabelSelector: proxyConfig.Selector,
+		LabelSelector: config.Selector,
 	})
 	if err != nil {
 		return "", err
@@ -97,7 +97,7 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	}
 
 	podIP := pods.Items[0].Status.PodIP
-	return fmt.Sprintf("http://%s:%d", podIP, proxyConfig.Port), nil
+	return fmt.Sprintf("http://%s:%d", podIP, config.Port), nil
 }
 
 func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {

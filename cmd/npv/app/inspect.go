@@ -218,9 +218,6 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 }
 
 func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	if err := validateGroupOption(); err != nil {
-		return err
-	}
 	parseInspectOptions()
 	basicFilter := proxy.MakeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
