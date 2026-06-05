@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 func init() {
@@ -47,6 +48,8 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
+	selector := subject.GetSelectorConfig()
+
 	items := make([]idTreeEntry, 0)
 	for _, item := range li.Items {
 		var e idTreeEntry
@@ -64,7 +67,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 			continue
 		}
 		if ns, ok := labels["k8s:io.kubernetes.pod.namespace"]; ok {
-			if !(rootOptions.allNamespaces || ns == rootOptions.namespace) {
+			if !(selector.AllNamespaces || ns == selector.Namespace) {
 				continue
 			}
 		}

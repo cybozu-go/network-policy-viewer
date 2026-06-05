@@ -83,7 +83,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	pods, err := selectSubjectPods(ctx, clientset, "", "")
+	pods, err := listSubjectPods(ctx, clientset, "")
 	if err != nil {
 		return err
 	}

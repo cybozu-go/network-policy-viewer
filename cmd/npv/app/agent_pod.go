@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 func init() {
@@ -31,7 +33,9 @@ func runAgentPod(ctx context.Context, w io.Writer, name string) error {
 		return err
 	}
 
-	pod, err := clientset.CoreV1().Pods(rootOptions.namespace).Get(ctx, name, metav1.GetOptions{})
+	selector := subject.GetSelectorConfig()
+
+	pod, err := clientset.CoreV1().Pods(selector.Namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
