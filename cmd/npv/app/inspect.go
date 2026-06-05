@@ -17,6 +17,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var inspectOptions struct {
@@ -235,7 +236,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}

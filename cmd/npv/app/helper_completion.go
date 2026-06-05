@@ -68,7 +68,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, getSubjectNamespace(), metav1.ListOptions{})
+	pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, subject.GetSubjectNamespace(), metav1.ListOptions{})
 	if err != nil {
 		return
 	}

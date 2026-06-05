@@ -2,10 +2,12 @@ package subject
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -56,6 +58,38 @@ func GetSelectorConfig() *SelectorConfig {
 
 func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
+}
+
+func GetSubjectNamespace() string {
+	if selectorConfig.AllNamespaces {
+		return ""
+	}
+	return selectorConfig.Namespace
+}
+
+func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
+	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.PodSelector != "") {
+		return nil, errors.New("multiple pods should not be selected when pod name is specified")
+	}
+
+	ns := GetSubjectNamespace()
+	if name != "" {
+		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return []*corev1.Pod{pod}, nil
+	} else {
+		opts := metav1.ListOptions{
+			LabelSelector: selectorConfig.PodSelector,
+		}
+		node := selectorConfig.Node
+		if node != "" {
+			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
+		}
+
+		return ListCiliumManagedPods(ctx, clientset, ns, opts)
+	}
 }
 
 func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {

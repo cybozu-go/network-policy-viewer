@@ -7,6 +7,8 @@ import (
 
 	"github.com/cilium/cilium/pkg/slices"
 	"github.com/spf13/cobra"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 func init() {
@@ -37,7 +39,7 @@ func runSubject(ctx context.Context, stdout io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}

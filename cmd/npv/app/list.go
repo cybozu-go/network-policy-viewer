@@ -20,6 +20,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var listOptions struct {
@@ -141,7 +142,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}
