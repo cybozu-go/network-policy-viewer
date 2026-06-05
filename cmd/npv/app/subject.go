@@ -46,7 +46,7 @@ func runSubject(ctx context.Context, stdout io.Writer, name string) error {
 
 	subjects := make([]string, len(pods))
 	for i, p := range pods {
-		subjects[i] = getPodSubject(p.Namespace, p.Name)
+		subjects[i] = subject.GetPodSubject(p.Namespace, p.Name)
 	}
 	subjects = slices.Unique(subjects)
 

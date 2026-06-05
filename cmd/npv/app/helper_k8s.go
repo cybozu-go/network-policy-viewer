@@ -87,25 +87,6 @@ func shouldPrintSubject(podName string) bool {
 	}
 }
 
-func getPodSubject(namespace, name string) string {
-	selector := subject.GetSelectorConfig()
-
-	switch subject.GetGroup() {
-	case subject.GroupAll:
-		return ""
-	case subject.GroupNamespace:
-		return namespace
-	case subject.GroupPod:
-		if selector.AllNamespaces {
-			return namespace + "/" + name
-		} else {
-			return name
-		}
-	default:
-		panic("internal error")
-	}
-}
-
 // key: identity number
 // value: CiliumIdentity resource
 func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[uint32]*unstructured.Unstructured, error) {
