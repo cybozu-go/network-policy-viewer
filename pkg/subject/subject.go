@@ -60,6 +60,7 @@ func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
 }
 
+// ShouldPrintSubject reports whether the result table should include a subject row.
 func ShouldPrintSubject(podName string) bool {
 	switch group {
 	case GroupAll:
@@ -97,6 +98,7 @@ func GetPodSubject(namespace, name string) string {
 	}
 }
 
+// ListSubjectPods returns the pods that should be examined according to the current options.
 func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
 	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.PodSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
