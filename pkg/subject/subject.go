@@ -1,6 +1,13 @@
 package subject
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+)
 
 const (
 	GroupAll       = "all"
@@ -49,4 +56,24 @@ func GetSelectorConfig() *SelectorConfig {
 
 func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
+}
+
+func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]*corev1.Pod, 0)
+	for _, p := range pods.Items {
+		// Skip non-relevant pods
+		if p.Spec.HostNetwork {
+			continue
+		}
+		if p.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ret = append(ret, &p)
+	}
+	return ret, nil
 }

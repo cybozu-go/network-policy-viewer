@@ -138,28 +138,8 @@ func listSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name 
 			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selector.Node).String()
 		}
 
-		return listCiliumManagedPods(ctx, clientset, ns, opts)
+		return subject.ListCiliumManagedPods(ctx, clientset, ns, opts)
 	}
-}
-
-func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
-	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	ret := make([]*corev1.Pod, 0)
-	for _, p := range pods.Items {
-		// Skip non-relevant pods
-		if p.Spec.HostNetwork {
-			continue
-		}
-		if p.Status.Phase != corev1.PodRunning {
-			continue
-		}
-		ret = append(ret, &p)
-	}
-	return ret, nil
 }
 
 // key: identity number
