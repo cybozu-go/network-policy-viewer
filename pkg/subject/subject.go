@@ -60,6 +60,19 @@ func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
 }
 
+func ShouldPrintSubject(podName string) bool {
+	switch group {
+	case GroupAll:
+		return false
+	case GroupNamespace:
+		return selectorConfig.AllNamespaces
+	case GroupPod:
+		return podName == ""
+	default:
+		panic("internal error")
+	}
+}
+
 func GetSubjectNamespace() string {
 	if selectorConfig.AllNamespaces {
 		return ""

@@ -260,7 +260,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	if shouldPrintSubject(name) {
+	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
@@ -275,7 +275,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
-		if shouldPrintSubject(name) {
+		if subject.ShouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values

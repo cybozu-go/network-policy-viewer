@@ -171,14 +171,14 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"DIRECTION", "|", "KIND", "NAMESPACE", "NAME"}
-	if shouldPrintSubject(name) {
+	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Direction, "|", p.Kind, p.Namespace, p.Name}
-		if shouldPrintSubject(name) {
+		if subject.ShouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values

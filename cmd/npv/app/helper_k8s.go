@@ -18,7 +18,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
-	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var (
@@ -70,21 +69,6 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	}
 
 	return uint32(identity), nil
-}
-
-func shouldPrintSubject(podName string) bool {
-	selector := subject.GetSelectorConfig()
-
-	switch subject.GetGroup() {
-	case subject.GroupAll:
-		return false
-	case subject.GroupNamespace:
-		return selector.AllNamespaces
-	case subject.GroupPod:
-		return podName == ""
-	default:
-		panic("internal error")
-	}
 }
 
 // key: identity number
