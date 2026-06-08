@@ -20,6 +20,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var listOptions struct {
@@ -115,7 +116,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		ingressRules := response.Payload.Status.Policy.Realized.L4.Ingress
 		for _, rule := range ingressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseListEntry(getPodSubject(pod.Namespace, pod.Name), directionIngress, r)
+				entry := parseListEntry(subject.GetPodSubject(pod.Namespace, pod.Name), directionIngress, r)
 				policySet[entry] = struct{}{}
 			}
 		}
@@ -124,7 +125,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 		egressRules := response.Payload.Status.Policy.Realized.L4.Egress
 		for _, rule := range egressRules {
 			for _, r := range rule.DerivedFromRules {
-				entry := parseListEntry(getPodSubject(pod.Namespace, pod.Name), directionEgress, r)
+				entry := parseListEntry(subject.GetPodSubject(pod.Namespace, pod.Name), directionEgress, r)
 				policySet[entry] = struct{}{}
 			}
 		}
@@ -141,7 +142,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}
@@ -170,14 +171,14 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"DIRECTION", "|", "KIND", "NAMESPACE", "NAME"}
-	if shouldPrintSubject(name) {
+	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Direction, "|", p.Kind, p.Namespace, p.Name}
-		if shouldPrintSubject(name) {
+		if subject.ShouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values

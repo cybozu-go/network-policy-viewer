@@ -1,6 +1,15 @@
 package subject
 
-import "fmt"
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
+)
 
 const (
 	GroupAll       = "all"
@@ -49,4 +58,88 @@ func GetSelectorConfig() *SelectorConfig {
 
 func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
+}
+
+// ShouldPrintSubject reports whether the result table should include a subject row.
+func ShouldPrintSubject(podName string) bool {
+	switch group {
+	case GroupAll:
+		return false
+	case GroupNamespace:
+		return selectorConfig.AllNamespaces
+	case GroupPod:
+		return podName == ""
+	default:
+		panic("internal error")
+	}
+}
+
+func GetSubjectNamespace() string {
+	if selectorConfig.AllNamespaces {
+		return ""
+	}
+	return selectorConfig.Namespace
+}
+
+func GetPodSubject(namespace, name string) string {
+	switch group {
+	case GroupAll:
+		return ""
+	case GroupNamespace:
+		return namespace
+	case GroupPod:
+		if selectorConfig.AllNamespaces {
+			return namespace + "/" + name
+		} else {
+			return name
+		}
+	default:
+		panic("internal error")
+	}
+}
+
+// ListSubjectPods returns the pods that should be examined according to the current options.
+func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
+	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.PodSelector != "") {
+		return nil, errors.New("multiple pods should not be selected when pod name is specified")
+	}
+
+	ns := GetSubjectNamespace()
+	if name != "" {
+		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return []*corev1.Pod{pod}, nil
+	} else {
+		opts := metav1.ListOptions{
+			LabelSelector: selectorConfig.PodSelector,
+		}
+		node := selectorConfig.Node
+		if node != "" {
+			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
+		}
+
+		return ListCiliumManagedPods(ctx, clientset, ns, opts)
+	}
+}
+
+func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]*corev1.Pod, 0)
+	for _, p := range pods.Items {
+		// Skip non-relevant pods
+		if p.Spec.HostNetwork {
+			continue
+		}
+		if p.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		ret = append(ret, &p)
+	}
+	return ret, nil
 }

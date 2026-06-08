@@ -17,6 +17,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var inspectOptions struct {
@@ -148,7 +149,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 	arr := make([]inspectEntry, len(policies))
 	for i, p := range policies {
 		var entry inspectEntry
-		entry.Subject = getPodSubject(pod.Namespace, pod.Name)
+		entry.Subject = subject.GetPodSubject(pod.Namespace, pod.Name)
 		entry.Node = pod.Spec.NodeName
 		if p.IsDeny() {
 			entry.Policy = policyDeny
@@ -235,7 +236,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		return err
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, clientset, name)
 	if err != nil {
 		return err
 	}
@@ -259,7 +260,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	if shouldPrintSubject(name) {
+	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
 	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
@@ -274,7 +275,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, p.Example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
-		if shouldPrintSubject(name) {
+		if subject.ShouldPrintSubject(name) {
 			values = append(subValues, values...)
 		}
 		return values

@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
+	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 func init() {
@@ -83,7 +84,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	pods, err := listSubjectPods(ctx, clientset, "")
+	pods, err := subject.ListSubjectPods(ctx, clientset, "")
 	if err != nil {
 		return err
 	}

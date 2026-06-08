@@ -12,14 +12,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
-	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
 var (
@@ -71,95 +69,6 @@ func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, na
 	}
 
 	return uint32(identity), nil
-}
-
-func shouldPrintSubject(podName string) bool {
-	selector := subject.GetSelectorConfig()
-
-	switch subject.GetGroup() {
-	case subject.GroupAll:
-		return false
-	case subject.GroupNamespace:
-		return selector.AllNamespaces
-	case subject.GroupPod:
-		return podName == ""
-	default:
-		panic("internal error")
-	}
-}
-
-func getSubjectNamespace() string {
-	selector := subject.GetSelectorConfig()
-	if selector.AllNamespaces {
-		return ""
-	}
-	return selector.Namespace
-}
-
-func getPodSubject(namespace, name string) string {
-	selector := subject.GetSelectorConfig()
-
-	switch subject.GetGroup() {
-	case subject.GroupAll:
-		return ""
-	case subject.GroupNamespace:
-		return namespace
-	case subject.GroupPod:
-		if selector.AllNamespaces {
-			return namespace + "/" + name
-		} else {
-			return name
-		}
-	default:
-		panic("internal error")
-	}
-}
-
-func listSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
-	selector := subject.GetSelectorConfig()
-
-	if (name != "") && (selector.AllNamespaces || selector.PodSelector != "") {
-		return nil, errors.New("multiple pods should not be selected when pod name is specified")
-	}
-
-	ns := getSubjectNamespace()
-	if name != "" {
-		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-		return []*corev1.Pod{pod}, nil
-	} else {
-		opts := metav1.ListOptions{
-			LabelSelector: selector.PodSelector,
-		}
-		node := selector.Node
-		if node != "" {
-			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selector.Node).String()
-		}
-
-		return listCiliumManagedPods(ctx, clientset, ns, opts)
-	}
-}
-
-func listCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
-	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	ret := make([]*corev1.Pod, 0)
-	for _, p := range pods.Items {
-		// Skip non-relevant pods
-		if p.Spec.HostNetwork {
-			continue
-		}
-		if p.Status.Phase != corev1.PodRunning {
-			continue
-		}
-		ret = append(ret, &p)
-	}
-	return ret, nil
 }
 
 // key: identity number
