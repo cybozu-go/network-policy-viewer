@@ -61,6 +61,10 @@ func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
 }
 
+func IsMultiNamespace() bool {
+	return selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != ""
+}
+
 func GetNamespaceListOptions() metav1.ListOptions {
 	switch {
 	case selectorConfig.AllNamespaces:
@@ -96,7 +100,7 @@ func ShouldPrintSubject(podName string) bool {
 	case GroupAll:
 		return false
 	case GroupNamespace:
-		return selectorConfig.AllNamespaces
+		return IsMultiNamespace()
 	case GroupPod:
 		return podName == ""
 	default:
@@ -111,7 +115,7 @@ func GetPodSubject(namespace, name string) string {
 	case GroupNamespace:
 		return namespace
 	case GroupPod:
-		if selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != "" {
+		if IsMultiNamespace() {
 			return namespace + "/" + name
 		} else {
 			return name
@@ -123,7 +127,7 @@ func GetPodSubject(namespace, name string) string {
 
 // ListSubjectPods returns the pods that should be examined according to the current options.
 func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
-	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != "" || selectorConfig.PodSelector != "") {
+	if (name != "") && (IsMultiNamespace() || selectorConfig.PodSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
