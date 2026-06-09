@@ -20,9 +20,6 @@ const (
 )
 
 const (
-	flagNamespace      = "namespace"
-	flagAllNamespaces  = "all-namespaces"
-	flagNode           = "node"
 	flagProxyNamespace = "proxy-namespace"
 	flagProxySelector  = "proxy-selector"
 	flagProxyPort      = "proxy-port"
@@ -31,8 +28,12 @@ const (
 	flagUnits          = "units"
 	flagJobs           = "jobs"
 
-	flagGroup       = "group"
-	flagPodSelector = "selector"
+	flagGroup             = "group"
+	flagAllNamespaces     = "all-namespaces"
+	flagNamespaceSelector = "namespace-selector"
+	flagNamespace         = "namespace"
+	flagPodSelector       = "selector"
+	flagNode              = "node"
 )
 
 var rootOptions struct {
@@ -80,10 +81,49 @@ func (c cidrOptions) isSet() bool {
 }
 
 func fillSelectorOptions(cmd *cobra.Command) error {
-	config := &subject.SelectorConfig{
-		AllNamespaces: viper.GetBool(flagAllNamespaces),
-		Namespace:     viper.GetString(flagNamespace),
-		Node:          viper.GetString(flagNode),
+	config := &subject.SelectorConfig{}
+
+	{
+		num := 0
+		if cmd.Flags().Changed(flagAllNamespaces) {
+			num += 1
+		}
+		if cmd.Flags().Changed(flagNamespaceSelector) {
+			num += 1
+		}
+		if cmd.Flags().Changed(flagNamespace) {
+			num += 1
+		}
+		if cmd.Flags().Changed(flagNode) {
+			num += 1
+		}
+		if num > 1 {
+			return errors.New("at most one of --all-namespaces, --namespace-selector, --namespace, and --node may be specified")
+		}
+	}
+
+	if cmd.Flags().Lookup(flagAllNamespaces) != nil {
+		v, err := cmd.Flags().GetBool(flagAllNamespaces)
+		if err != nil {
+			return err
+		}
+		config.AllNamespaces = v
+	}
+
+	if cmd.Flags().Lookup(flagNamespaceSelector) != nil {
+		v, err := cmd.Flags().GetString(flagNamespaceSelector)
+		if err != nil {
+			return err
+		}
+		config.NamespaceSelector = v
+	}
+
+	if cmd.Flags().Lookup(flagNamespace) != nil {
+		v, err := cmd.Flags().GetString(flagNamespace)
+		if err != nil {
+			return err
+		}
+		config.Namespace = v
 	}
 
 	if cmd.Flags().Lookup(flagPodSelector) != nil {
@@ -94,12 +134,18 @@ func fillSelectorOptions(cmd *cobra.Command) error {
 		config.PodSelector = v
 	}
 
+	if cmd.Flags().Lookup(flagNode) != nil {
+		v, err := cmd.Flags().GetString(flagNode)
+		if err != nil {
+			return err
+		}
+		config.Node = v
+	}
+
 	if config.Node != "" {
 		config.AllNamespaces = true
 	}
-	if config.AllNamespaces && cmd.Flags().Changed(flagNamespace) {
-		return errors.New("namespace (-n) and all-namespaces (-A) should not be specified at once")
-	}
+
 	subject.SetSelectorConfig(config)
 	return nil
 }
@@ -135,9 +181,6 @@ func fillOptions(cmd *cobra.Command) error {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP(flagNamespace, "n", "default", "namespace of pods")
-	rootCmd.PersistentFlags().BoolP(flagAllNamespaces, "A", false, "show pods across all namespaces")
-	rootCmd.PersistentFlags().String(flagNode, "", "node of pods. It turns on -A (--all-namespaces).")
 	rootCmd.PersistentFlags().String(flagProxyNamespace, "cilium-agent-proxy", "namespace of the proxy pods")
 	rootCmd.PersistentFlags().String(flagProxySelector, "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
 	rootCmd.PersistentFlags().Uint16(flagProxyPort, 8080, "port number of the proxy endpoints")
@@ -145,8 +188,6 @@ func init() {
 	rootCmd.PersistentFlags().Bool(flagNoHeaders, false, "stop printing header")
 	rootCmd.PersistentFlags().BoolP(flagUnits, "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.PersistentFlags().IntP(flagJobs, "j", 4, "number of parallel queries")
-	rootCmd.RegisterFlagCompletionFunc(flagNamespace, completeNamespaces)
-	rootCmd.RegisterFlagCompletionFunc(flagNode, completeNodes)
 
 	viper.BindPFlags(rootCmd.PersistentFlags())
 	viper.SetEnvPrefix("npv")
@@ -155,11 +196,31 @@ func init() {
 }
 
 func addGroupOption(cmd *cobra.Command) {
-	cmd.Flags().StringP(flagGroup, "g", "pod", "experimental: merge entries within each subject group (pod [p], ns [n], all [a])")
+	cmd.Flags().StringP(flagGroup, "g", "pod", "merge entries within each subject group (pod [p], ns [n], all [a])")
 }
 
-func addSelectorOption(cmd *cobra.Command) {
-	cmd.Flags().StringP(flagPodSelector, "l", "", "specify label constraints")
+// Use addNamespaceOption, addNamespaceSelectorOption, or addPodSelectorOption,
+// depending on what the command needs.
+
+// addNamespaceOption adds a flag for selecting a single namespace.
+func addNamespaceOption(cmd *cobra.Command) {
+	cmd.Flags().StringP(flagNamespace, "n", "", "namespace to select pods from")
+	cmd.RegisterFlagCompletionFunc(flagNamespace, completeNamespaces)
+}
+
+// addNamespaceSelectorOption adds flags for selecting namespaces.
+func addNamespaceSelectorOption(cmd *cobra.Command) {
+	addNamespaceOption(cmd)
+	cmd.Flags().BoolP(flagAllNamespaces, "A", false, "show pods across all namespaces")
+	cmd.Flags().StringP(flagNamespaceSelector, "N", "", "namespace label selector")
+}
+
+// addPodSelectorOption adds flags for selecting pods across multiple namespaces.
+func addPodSelectorOption(cmd *cobra.Command) {
+	addNamespaceSelectorOption(cmd)
+	cmd.Flags().StringP(flagPodSelector, "l", "", "pod label selector")
+	cmd.Flags().String(flagNode, "", "node to filter pods by; implies -A (--all-namespaces)")
+	cmd.RegisterFlagCompletionFunc(flagNode, completeNodes)
 }
 
 func addDirectionOption(cmd *cobra.Command) {

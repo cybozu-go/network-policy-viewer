@@ -29,10 +29,10 @@ var _ = Describe("Test network-policy-viewer", func() {
 func processTestTraffic() {
 	data := kubectlSafe(Default, nil, "get", "pod", "-n=test", "-l=test=self", "-o=jsonpath={.items[*].metadata.name}")
 	selfNames := strings.Fields(string(data))
-	l3PodName := onePodByLabelSelector(Default, "test", "test=l3-ingress-explicit-allow-all")
-	l4PodName := onePodByLabelSelector(Default, "test", "test=l4-ingress-explicit-allow-tcp")
-	l3PodIP := string(kubectlSafe(Default, nil, "get", "pod", "-n=test", l3PodName, "-o=jsonpath={.status.podIP}"))
-	l4PodIP := string(kubectlSafe(Default, nil, "get", "pod", "-n=test", l4PodName, "-o=jsonpath={.status.podIP}"))
+	l3PodName := onePodByLabelSelector(Default, "test-l3", "test=l3-ingress-explicit-allow-all")
+	l4PodName := onePodByLabelSelector(Default, "test-l4", "test=l4-ingress-explicit-allow-tcp")
+	l3PodIP := string(kubectlSafe(Default, nil, "get", "pod", "-n=test-l3", l3PodName, "-o=jsonpath={.status.podIP}"))
+	l4PodIP := string(kubectlSafe(Default, nil, "get", "pod", "-n=test-l4", l4PodName, "-o=jsonpath={.status.podIP}"))
 
 	kubectlSafe(Default, nil, "exec", "-n=test", selfNames[0], "--", "dig", "@1.1.1.1", "google.com")
 	kubectlSafe(Default, nil, "exec", "-n=test", selfNames[1], "--", "dig", "@8.8.8.8", "google.com")

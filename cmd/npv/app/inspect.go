@@ -35,7 +35,7 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
-	addSelectorOption(inspectCmd)
+	addPodSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	addDirectionOption(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)

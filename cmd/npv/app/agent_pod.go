@@ -12,6 +12,7 @@ import (
 )
 
 func init() {
+	addNamespaceOption(agentPodCmd)
 	agentCmd.AddCommand(agentPodCmd)
 }
 

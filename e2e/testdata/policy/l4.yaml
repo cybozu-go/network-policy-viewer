@@ -17,12 +17,14 @@ spec:
   egress:
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-ingress-explicit-allow-any
       toPorts:
         - ports:
             - port: "53"
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-ingress-explicit-allow-tcp
       toPorts:
         - ports:
@@ -30,12 +32,14 @@ spec:
               protocol: TCP
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-ingress-explicit-deny-any
       toPorts:
         - ports:
             - port: "53"
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-ingress-explicit-deny-udp
       toPorts:
         - ports:
@@ -50,12 +54,14 @@ spec:
   egressDeny:
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-egress-explicit-deny-any
       toPorts:
         - ports:
             - port: "53"
     - toEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
             k8s:test: l4-egress-explicit-deny-tcp
       toPorts:
         - ports:
@@ -70,7 +76,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  namespace: test
+  namespace: test-l4
   name: l4-ingress-explicit-allow-any
 spec:
   endpointSelector:
@@ -79,6 +85,7 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
             k8s:test: self
       toPorts:
         - ports:
@@ -87,7 +94,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  namespace: test
+  namespace: test-l4
   name: l4-ingress-explicit-allow-tcp
 spec:
   endpointSelector:
@@ -96,6 +103,7 @@ spec:
   ingress:
     - fromEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
             k8s:test: self
       toPorts:
         - ports:
@@ -105,7 +113,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  namespace: test
+  namespace: test-l4
   name: l4-ingress-explicit-deny-any
 spec:
   endpointSelector:
@@ -114,6 +122,7 @@ spec:
   ingressDeny:
     - fromEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
             k8s:test: self
       toPorts:
         - ports:
@@ -122,7 +131,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  namespace: test
+  namespace: test-l4
   name: l4-ingress-explicit-deny-udp
 spec:
   endpointSelector:
@@ -131,6 +140,7 @@ spec:
   ingressDeny:
     - fromEndpoints:
         - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test
             k8s:test: self
       toPorts:
         - ports:
@@ -140,7 +150,7 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  namespace: test
+  namespace: test-l4
   name: l4-ingress-all-allow-tcp
 spec:
   endpointSelector:

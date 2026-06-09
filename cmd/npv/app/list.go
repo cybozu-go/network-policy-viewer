@@ -29,7 +29,7 @@ var listOptions struct {
 
 func init() {
 	addGroupOption(listCmd)
-	addSelectorOption(listCmd)
+	addPodSelectorOption(listCmd)
 	addDirectionOption(listCmd)
 	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
 	rootCmd.AddCommand(listCmd)

@@ -18,10 +18,11 @@ const (
 )
 
 type SelectorConfig struct {
-	AllNamespaces bool
-	Namespace     string
-	PodSelector   string
-	Node          string
+	AllNamespaces     bool
+	NamespaceSelector string
+	Namespace         string
+	PodSelector       string
+	Node              string
 }
 
 var (
@@ -60,6 +61,35 @@ func SetSelectorConfig(c *SelectorConfig) {
 	selectorConfig = c
 }
 
+func GetNamespaceListOptions() metav1.ListOptions {
+	switch {
+	case selectorConfig.AllNamespaces:
+		return metav1.ListOptions{}
+	case selectorConfig.NamespaceSelector != "":
+		return metav1.ListOptions{
+			LabelSelector: selectorConfig.NamespaceSelector,
+		}
+	case selectorConfig.Namespace != "":
+		return metav1.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", selectorConfig.Namespace).String(),
+		}
+	default:
+		return metav1.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default").String(),
+		}
+	}
+}
+
+func GetPodListOptions() metav1.ListOptions {
+	opts := metav1.ListOptions{
+		LabelSelector: selectorConfig.PodSelector,
+	}
+	if selectorConfig.Node != "" {
+		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
+	}
+	return opts
+}
+
 // ShouldPrintSubject reports whether the result table should include a subject row.
 func ShouldPrintSubject(podName string) bool {
 	switch group {
@@ -74,13 +104,6 @@ func ShouldPrintSubject(podName string) bool {
 	}
 }
 
-func GetSubjectNamespace() string {
-	if selectorConfig.AllNamespaces {
-		return ""
-	}
-	return selectorConfig.Namespace
-}
-
 func GetPodSubject(namespace, name string) string {
 	switch group {
 	case GroupAll:
@@ -88,7 +111,7 @@ func GetPodSubject(namespace, name string) string {
 	case GroupNamespace:
 		return namespace
 	case GroupPod:
-		if selectorConfig.AllNamespaces {
+		if selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != "" {
 			return namespace + "/" + name
 		} else {
 			return name
@@ -100,46 +123,44 @@ func GetPodSubject(namespace, name string) string {
 
 // ListSubjectPods returns the pods that should be examined according to the current options.
 func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
-	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.PodSelector != "") {
+	if (name != "") && (selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != "" || selectorConfig.PodSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
-	ns := GetSubjectNamespace()
 	if name != "" {
-		pod, err := clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
+		pod, err := clientset.CoreV1().Pods(selectorConfig.Namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		return []*corev1.Pod{pod}, nil
 	} else {
-		opts := metav1.ListOptions{
-			LabelSelector: selectorConfig.PodSelector,
-		}
-		node := selectorConfig.Node
-		if node != "" {
-			opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
-		}
-
-		return ListCiliumManagedPods(ctx, clientset, ns, opts)
+		return ListCiliumManagedPods(ctx, clientset, GetNamespaceListOptions(), GetPodListOptions())
 	}
 }
 
-func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, namespace string, opts metav1.ListOptions) ([]*corev1.Pod, error) {
-	pods, err := c.CoreV1().Pods(namespace).List(ctx, opts)
+func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, nsOptions metav1.ListOptions, podOptions metav1.ListOptions) ([]*corev1.Pod, error) {
+	nss, err := c.CoreV1().Namespaces().List(ctx, nsOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	ret := make([]*corev1.Pod, 0)
-	for _, p := range pods.Items {
-		// Skip non-relevant pods
-		if p.Spec.HostNetwork {
-			continue
+	for _, n := range nss.Items {
+		pods, err := c.CoreV1().Pods(n.Name).List(ctx, podOptions)
+		if err != nil {
+			return nil, err
 		}
-		if p.Status.Phase != corev1.PodRunning {
-			continue
+
+		for _, p := range pods.Items {
+			// Skip non-relevant pods
+			if p.Spec.HostNetwork {
+				continue
+			}
+			if p.Status.Phase != corev1.PodRunning {
+				continue
+			}
+			ret = append(ret, &p)
 		}
-		ret = append(ret, &p)
 	}
 	return ret, nil
 }

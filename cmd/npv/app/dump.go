@@ -13,6 +13,7 @@ import (
 )
 
 func init() {
+	addNamespaceOption(dumpCmd)
 	rootCmd.AddCommand(dumpCmd)
 }
 
