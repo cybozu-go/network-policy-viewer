@@ -95,7 +95,6 @@ Allow,Ingress,reserved:host,true,true,0,0`,
 			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,reserved:host,false,false,6,8000
 Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{

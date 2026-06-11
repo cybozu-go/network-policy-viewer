@@ -9,8 +9,8 @@ HELM := helm --content-cache $(CACHE_DIR)/helm/content
 
 # Avoid using SHA here
 # https://github.com/kubernetes-sigs/kind/issues/4028
-CILIUM_IMAGE := quay.io/cilium/cilium:v1.16.19
-CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.16.19@sha256:7496a278401c221a30d023df4e40c4e97c3c203645b337d332da5f9e887acf06
+CILIUM_IMAGE := quay.io/cilium/cilium:v1.17.16
+CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.17.16@sha256:d707d52d83d4b33acfc3ce0aa3cc1296863249866f3d8cda48e78b7b3442d92b
 
 DEPLOYMENT_REPLICAS ?= 1
 

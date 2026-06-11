@@ -58,7 +58,7 @@ var inspectCmd = &cobra.Command{
 }
 
 // This command aims to show the result of "cilium bpf policy get" from a remote pod.
-// https://github.com/cilium/cilium/blob/v1.16.3/cilium-dbg/cmd/bpf_policy_get.go
+// https://github.com/cilium/cilium/blob/v1.17.16/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
 	Subject          string `json:"subject"`
 	Node             string `json:"node"`
