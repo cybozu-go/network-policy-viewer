@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -80,6 +81,9 @@ func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		return true
+	})
+	slices.SortFunc(ids, func(x, y Identity) int {
+		return cmp.Compare(x.ID, y.ID)
 	})
 
 	data, err := json.Marshal(ids)
