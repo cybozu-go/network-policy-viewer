@@ -329,8 +329,12 @@ OUTER:
 					}
 
 					name := li[1]
-					ip[uint32(id.ID)] = c.cidrGroups[name]
-					pi = append(pi, c.cidrGroups[name]...)
+					groupCIDRs, ok := c.cidrGroups[name]
+					if !ok {
+						return fmt.Errorf("failed to find CiliumCIDRGroup %s", name)
+					}
+					ip[uint32(id.ID)] = groupCIDRs
+					pi = append(pi, groupCIDRs...)
 					continue OUTER
 				}
 			}
