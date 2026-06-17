@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -41,13 +42,62 @@ func colored(color int, text string) string {
 	return text
 }
 
-func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {
-	expr := make([][]any, 0)
-	for i := range count {
-		expr = append(expr, values(i))
+// inflateRow expands a single row into multiple rows when some cells contain slices.
+func inflateRow(input []any, repeat []bool) [][]any {
+	// Input:
+	// a | [1, 2] | [100, 200, 300]
+	//
+	// Output:
+	// a | 1 | 100
+	//   | 2 | 200
+	//   |   | 300
+	ncol := len(input)
+	maxHeight := 1
+	height := make([]int, ncol)
+	inflate := make([]bool, ncol)
+	for i := range ncol {
+		if reflect.TypeOf(input[i]).Kind() == reflect.Slice {
+			height[i] = reflect.ValueOf(input[i]).Len()
+			maxHeight = max(maxHeight, height[i])
+			inflate[i] = true
+		}
 	}
 
+	ret := make([][]any, maxHeight)
+	for j := range maxHeight {
+		entry := make([]any, ncol)
+		for i := range ncol {
+			switch {
+			case repeat[i]:
+				fallthrough
+			case (j == 0) && !inflate[i]:
+				entry[i] = input[i]
+			case j < height[i]:
+				v := reflect.ValueOf(input[i]).Index(j).Interface()
+				entry[i] = v
+			default:
+				entry[i] = ""
+			}
+		}
+		ret[j] = entry
+	}
+	return ret
+}
+
+func writeSimpleOrJson(w io.Writer, content any, header []string, count int, values func(index int) []any) error {
+	expr := make([][]any, 0)
 	if rootOptions.output == OutputSimple {
+		repeat := make([]bool, len(header))
+		for i := range len(header) {
+			repeat[i] = header[i] == "|"
+		}
+
+		for i := range count {
+			v := values(i)
+			entries := inflateRow(v, repeat)
+			expr = append(expr, entries...)
+		}
+
 		header = slices.Clone(header)
 		for j := 0; j < len(header); j++ {
 			h := header[j]
@@ -55,7 +105,7 @@ func writeSimpleOrJson(w io.Writer, content any, header []string, count int, val
 				h = h[:len(h)-1]
 				header[j] = h
 				width := len(h)
-				for i := 0; i < count; i++ {
+				for i := range len(expr) {
 					v := fmt.Sprintf("%v", expr[i][j])
 					width = max(width, len(v))
 					expr[i][j] = v
@@ -63,10 +113,14 @@ func writeSimpleOrJson(w io.Writer, content any, header []string, count int, val
 
 				format := fmt.Sprintf("%%%ds", width)
 				header[j] = fmt.Sprintf(format, header[j])
-				for i := 0; i < count; i++ {
+				for i := range len(expr) {
 					expr[i][j] = fmt.Sprintf(format, expr[i][j])
 				}
 			}
+		}
+	} else {
+		for i := range count {
+			expr = append(expr, values(i))
 		}
 	}
 
@@ -89,7 +143,7 @@ func writeSimpleOrJson(w io.Writer, content any, header []string, count int, val
 				return err
 			}
 		}
-		for i := range count {
+		for i := range len(expr) {
 			format := strings.Repeat("%v\t", len(header)-1) + "%v\n"
 			if _, err := tw.Write([]byte(fmt.Sprintf(format, expr[i]...))); err != nil {
 				return err

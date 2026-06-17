@@ -95,7 +95,6 @@ Allow,Ingress,reserved:host,true,true,0,0`,
 			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-all-allow-tcp",
 			Expected: `Allow,Ingress,reserved:host,true,true,0,0
-Allow,Ingress,reserved:host,false,false,6,8000
 Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
 		{
@@ -139,11 +138,15 @@ Deny,Egress,l4-egress-explicit-deny-any,false,false,17,53
 Deny,Egress,l4-egress-explicit-deny-any,false,false,132,53
 Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000
 Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Ingress,cidr:10.120.0.0/16-10.120.0.0/24,true,true,0,0
+Allow,Ingress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
 Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0
 Allow,Ingress,reserved:host,true,true,0,0
 Allow,Egress,cidr:1.1.1.1/32,false,false,6,53
 Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,cidr:1.1.1.1/32,false,false,132,53
+Allow,Egress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
+Allow,Egress,cidr:10.140.20.0/24,true,true,0,0
 Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53
@@ -169,10 +172,14 @@ Deny,Egress,cidr:8.8.4.4/32,false,false,6,53
 Deny,Egress,cidr:8.8.4.4/32,false,false,17,53
 Deny,Egress,cidr:8.8.4.4/32,false,false,132,53
 Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Ingress,cidr:10.120.0.0/16-10.120.0.0/24,true,true,0,0
+Allow,Ingress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
 Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0
 Allow,Egress,cidr:1.1.1.1/32,false,false,6,53
 Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,cidr:1.1.1.1/32,false,false,132,53
+Allow,Egress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
+Allow,Egress,cidr:10.140.20.0/24,true,true,0,0
 Allow,Egress,cidr:8.8.8.8/32,false,false,6,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,132,53`,
@@ -220,8 +227,13 @@ Deny,Egress,cidr:8.8.4.4/32,false,false,132,53`,
 			ExtraArgs: []string{"--with-private-cidrs"},
 			Expected: `Deny,Ingress,cidr:192.168.100.0/24,false,false,6,8080
 Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
-Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0`,
+Allow,Ingress,cidr:10.120.0.0/16-10.120.0.0/24,true,true,0,0
+Allow,Ingress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
+Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0
+Allow,Egress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
+Allow,Egress,cidr:10.140.20.0/24,true,true,0,0`,
 		},
+		// npv inspect should handle --with-public-cidrs
 		{
 			Namespace: "test",
 			Selector:  "test=self",
@@ -248,6 +260,7 @@ Deny,Egress,cidr:public,false,false,17,53
 Deny,Egress,cidr:public,false,false,132,53
 Allow,Ingress,cidr:private,true,true,0,0
 Allow,Ingress,cidr:unknown,true,true,0,0
+Allow,Egress,cidr:private,true,true,0,0
 Allow,Egress,cidr:public,false,false,6,53
 Allow,Egress,cidr:public,false,false,17,53
 Allow,Egress,cidr:public,false,false,132,53`,
@@ -316,6 +329,8 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			Selector:  "test=self",
 			ExtraArgs: []string{"--ingress", "--allowed"},
 			Expected: `Allow,Ingress,cidr:10.100.0.0/16,true,true,0,0
+Allow,Ingress,cidr:10.120.0.0/16-10.120.0.0/24,true,true,0,0
+Allow,Ingress,cidr:10.140.0.0/24+10.140.10.0/24,true,true,0,0
 Allow,Ingress,cidr:172.0.0.0/8,true,true,0,0
 Allow,Ingress,reserved:host,true,true,0,0`,
 		},

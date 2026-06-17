@@ -225,6 +225,10 @@ spec:
     - matchLabels:
         k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
         k8s:test: l3-ingress-explicit-deny-all
+  - toCIDRSet:
+    - cidrGroupSelector:
+        matchLabels:
+          group: test-group
   egressDeny:
   - toEndpoints:
     - matchLabels:
@@ -237,6 +241,11 @@ spec:
   - fromCIDR:
     - 10.100.0.0/16
     - 172.0.0.0/8
+  - fromCIDRSet:
+    - cidr: 10.120.0.0/16
+      except:
+      - 10.120.0.0/24
+    - cidrGroupRef: cidr-group-1
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

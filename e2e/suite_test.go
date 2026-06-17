@@ -43,6 +43,10 @@ func processTestTraffic() {
 }
 
 func runTest() {
+	// unit
+	Context("cidr", testCIDR)
+
+	// e2e
 	Context("agent-node", testAgentNode)
 	Context("agent-pod", testAgentPod)
 	Context("dump", testDump)

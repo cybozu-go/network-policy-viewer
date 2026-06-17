@@ -9,8 +9,8 @@ import (
 )
 
 func testSummary() {
-	expected := `self,3,1,17,8
-self,3,1,17,8
+	expected := `self,5,1,19,8
+self,5,1,19,8
 l3-egress-explicit-deny-all,1,0,0,0
 l3-egress-implicit-deny-all,1,0,0,0
 l3-ingress-explicit-allow-all,2,0,0,0
@@ -19,7 +19,7 @@ l3-ingress-explicit-deny-all,1,1,0,0
 l3-ingress-implicit-deny-all,1,0,0,0
 l4-egress-explicit-deny-any,1,0,0,0
 l4-egress-explicit-deny-tcp,1,0,0,0
-l4-ingress-all-allow-tcp,3,0,0,0
+l4-ingress-all-allow-tcp,2,0,0,0
 l4-ingress-explicit-allow-any,4,0,0,0
 l4-ingress-explicit-allow-tcp,2,0,0,0
 l4-ingress-explicit-deny-any,1,3,0,0

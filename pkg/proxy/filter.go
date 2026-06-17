@@ -2,11 +2,9 @@ package proxy
 
 import (
 	"context"
-	"net"
 	"slices"
 
 	"github.com/cilium/cilium/pkg/identity"
-	"github.com/cilium/cilium/pkg/ip"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 )
@@ -60,9 +58,7 @@ func MakeIdentityFilter(ingress, egress bool, id uint32) PolicyFilter {
 	}
 }
 
-func MakeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) PolicyFilter {
-	incl = ip.RemoveCIDRs(incl, excl)
-
+func MakeCIDRFilter(ingress, egress bool, s cidr.Set) PolicyFilter {
 	return func(ctx context.Context, client *Client, p *PolicyEntry) (bool, error) {
 		if (p.IsIngress() && !ingress) || (p.IsEgress() && !egress) {
 			return false, nil
@@ -89,12 +85,7 @@ func MakeCIDRFilter(ingress, egress bool, incl []*net.IPNet, excl []*net.IPNet) 
 		}
 
 		// Check
-		for _, c := range incl {
-			if cidr.IsChildCIDR(c, idCIDR) || cidr.IsChildCIDR(idCIDR, c) {
-				return true, nil
-			}
-		}
-		return false, nil
+		return s.Overlaps(*idCIDR), nil
 	}
 }
 

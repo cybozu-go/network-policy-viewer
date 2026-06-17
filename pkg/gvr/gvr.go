@@ -25,3 +25,9 @@ var ClusterwideNetworkPolicy schema.GroupVersionResource = schema.GroupVersionRe
 	Version:  "v2",
 	Resource: "ciliumclusterwidenetworkpolicies",
 }
+
+var CIDRGroup schema.GroupVersionResource = schema.GroupVersionResource{
+	Group:    "cilium.io",
+	Version:  "v2alpha1",
+	Resource: "ciliumcidrgroups",
+}

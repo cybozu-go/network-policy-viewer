@@ -6,7 +6,7 @@ import (
 )
 
 // For the meanings of the flags, see:
-// https://github.com/cilium/cilium/blob/v1.16.12/bpf/lib/common.h#L396
+// https://github.com/cilium/cilium/blob/v1.17.16/bpf/lib/common.h#L405
 type PolicyEntry struct {
 	policymap.PolicyEntryDump
 }
