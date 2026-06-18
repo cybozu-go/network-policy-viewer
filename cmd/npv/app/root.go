@@ -151,7 +151,8 @@ func fillSelectorOptions(cmd *cobra.Command) error {
 }
 
 var commonOptions struct {
-	with cidrOptions
+	with      cidrOptions
+	manifests bool
 }
 
 var policyOptions struct {
@@ -261,6 +262,10 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 	default:
 		return nil, fmt.Errorf("one of --%s-cidrs, --%s-private-cidrs, --%s-public-cidrs can be specified", prefix, prefix, prefix)
 	}
+}
+
+func addManifestOption(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&commonOptions.manifests, "manifests", "m", false, "show policy manifests")
 }
 
 var rootCmd = &cobra.Command{

@@ -15,11 +15,13 @@ import (
 	"sync"
 
 	"github.com/cilium/cilium/api/v1/client/endpoint"
+	"github.com/cilium/cilium/api/v1/client/policy"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"golang.org/x/mod/semver"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -158,6 +160,21 @@ func fetchCIDRGroupsLocked(ctx context.Context, d *dynamic.DynamicClient) error 
 	return nil
 }
 
+func GetProxyPods(ctx context.Context, c *kubernetes.Clientset) ([]*corev1.Pod, error) {
+	pods, err := c.CoreV1().Pods(config.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: config.Selector,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]*corev1.Pod, len(pods.Items))
+	for i, p := range pods.Items {
+		ret[i] = &p
+	}
+	return ret, nil
+}
+
 func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*Client, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
@@ -285,6 +302,11 @@ func (c *Client) GetEndpointResponse(ctx context.Context, namespace, name string
 		return nil, errors.New("api response is insufficient")
 	}
 	return response, nil
+}
+
+func (c *Client) GetPolicySelectorResponse(ctx context.Context) (*policy.GetPolicySelectorsOK, error) {
+	params := policy.GetPolicySelectorsParams{}
+	return c.Policy.GetPolicySelectors(&params)
 }
 
 func (c *Client) prepareCIDRs(ctx context.Context) error {

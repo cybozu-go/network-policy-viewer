@@ -47,6 +47,20 @@ func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
 }
 
+func handlePolicySelectors(w http.ResponseWriter, r *http.Request) {
+	url := "http://localhost/v1/policy/selectors/"
+	resp, err := socketClient.Get(url)
+	if err != nil {
+		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	buf := new(bytes.Buffer)
+	io.Copy(buf, resp.Body)
+	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
+}
+
 func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 	url := "http://localhost/v1/identity"
 	resp, err := socketClient.Get(url)
@@ -170,6 +184,7 @@ func subMain() error {
 	}
 
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
+	http.HandleFunc("/v1/policy/selectors/", handlePolicySelectors)
 	http.HandleFunc("/cidr-identities", handleCIDRIdentities)
 	http.HandleFunc("/policy/", handlePolicy)
 	http.HandleFunc("/version", handleVersion)
