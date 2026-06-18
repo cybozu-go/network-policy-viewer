@@ -70,7 +70,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, subject.GetNamespaceListOptions(), subject.GetPodListOptions())
+	pods, err := k8s.ListCiliumManagedPods(context.Background(), clientset, subject.GetNamespaceListOptions(), subject.GetPodListOptions())
 	if err != nil {
 		return
 	}
@@ -100,7 +100,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 			FieldSelector: fields.OneTermEqualSelector("metadata.name", li[0]).String(),
 		}
 		podOptions := subject.GetPodListOptions()
-		pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, nsOptions, podOptions)
+		pods, err := k8s.ListCiliumManagedPods(context.Background(), clientset, nsOptions, podOptions)
 		if err != nil {
 			return
 		}

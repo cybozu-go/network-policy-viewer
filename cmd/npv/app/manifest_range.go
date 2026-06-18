@@ -7,8 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/spf13/cobra"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 var manifestRangeOptions struct {

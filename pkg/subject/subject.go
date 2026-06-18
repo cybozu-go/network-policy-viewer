@@ -9,6 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 const (
@@ -138,33 +140,6 @@ func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name 
 		}
 		return []*corev1.Pod{pod}, nil
 	} else {
-		return ListCiliumManagedPods(ctx, clientset, GetNamespaceListOptions(), GetPodListOptions())
+		return k8s.ListCiliumManagedPods(ctx, clientset, GetNamespaceListOptions(), GetPodListOptions())
 	}
-}
-
-func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, nsOptions metav1.ListOptions, podOptions metav1.ListOptions) ([]*corev1.Pod, error) {
-	nss, err := c.CoreV1().Namespaces().List(ctx, nsOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	ret := make([]*corev1.Pod, 0)
-	for _, n := range nss.Items {
-		pods, err := c.CoreV1().Pods(n.Name).List(ctx, podOptions)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, p := range pods.Items {
-			// Skip non-relevant pods
-			if p.Spec.HostNetwork {
-				continue
-			}
-			if p.Status.Phase != corev1.PodRunning {
-				continue
-			}
-			ret = append(ret, &p)
-		}
-	}
-	return ret, nil
 }
