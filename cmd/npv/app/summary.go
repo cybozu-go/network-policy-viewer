@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -85,7 +86,7 @@ func runSummaryOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 }
 
 func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}

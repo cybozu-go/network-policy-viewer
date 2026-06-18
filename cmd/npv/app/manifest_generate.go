@@ -14,6 +14,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 var manifestGenerateOptions struct {
@@ -80,7 +81,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	}
 
 	// Parameters are all up, let's start querying API server
-	_, dynamicClient, err := createK8sClients()
+	_, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}

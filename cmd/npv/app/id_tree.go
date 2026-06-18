@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
@@ -38,7 +39,7 @@ type idTreeEntry struct {
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
