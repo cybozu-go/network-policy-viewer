@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -137,7 +138,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}

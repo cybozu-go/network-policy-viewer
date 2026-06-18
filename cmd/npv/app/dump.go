@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -30,7 +31,7 @@ var dumpCmd = &cobra.Command{
 }
 
 func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}

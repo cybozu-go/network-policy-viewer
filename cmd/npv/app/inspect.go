@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -235,7 +236,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	}
 	filter := proxy.MakeAllFilter(basicFilter, withFilter)
 
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}

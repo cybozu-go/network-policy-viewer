@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
@@ -18,7 +19,7 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (r
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -41,7 +42,7 @@ func completeNodes(cmd *cobra.Command, args []string, toComplete string) (ret []
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -64,7 +65,7 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -87,7 +88,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}

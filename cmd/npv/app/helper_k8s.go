@@ -14,8 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
@@ -33,25 +31,6 @@ func parseNamespacedName(nn string) (types.NamespacedName, error) {
 		return types.NamespacedName{}, errors.New("input is not NAMESPACE/NAME")
 	}
 	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
-}
-
-func createK8sClients() (*kubernetes.Clientset, *dynamic.DynamicClient, error) {
-	config, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return clientset, dynamicClient, nil
 }
 
 func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (uint32, error) {
