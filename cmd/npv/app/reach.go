@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 )
 
@@ -161,7 +162,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 	}
 
 	header := []string{"ROLE", "DIRECTION", "POLICY", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
-	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
+	return output.WriteSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		protocol := u8proto.U8proto(p.Protocol).String()
 		var port string
@@ -172,7 +173,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		}
 		var example any
 		example = p.Example
-		if (rootOptions.output == OutputSimple) && strings.HasPrefix(p.Example, "cidr:") {
+		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
 			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
 			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
 			if strings.Contains(p.Example, ",") {
