@@ -18,26 +18,24 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
-
-var listOptions struct {
-	manifests bool
-}
 
 func init() {
 	addGroupOption(listCmd)
 	addPodSelectorOption(listCmd)
 	addDirectionOption(listCmd)
-	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
+	addManifestOption(listCmd)
 	rootCmd.AddCommand(listCmd)
 }
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "list network policies applied to a pod",
+	Short: "List network policies applied to a pod",
 	Long:  `List network policies applied to a pod`,
 
 	Args: cobra.RangeArgs(0, 1),
@@ -137,7 +135,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := createK8sClients()
+	clientset, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
@@ -165,7 +163,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		},
 	)
 
-	if listOptions.manifests {
+	if commonOptions.manifests {
 		return listPolicyManifests(ctx, stdout, dynamicClient, arr)
 	}
 
@@ -212,7 +210,7 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		}
 		first = false
 
-		isCNP := p.Kind == "CiliumNetworkPolicy"
+		isCNP := p.Kind == gvk.NetworkPolicy.Kind
 		var resource *unstructured.Unstructured
 		if isCNP {
 			cnp, err := dynamicClient.Resource(gvr.NetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})

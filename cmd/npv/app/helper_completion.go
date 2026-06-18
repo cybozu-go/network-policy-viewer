@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
@@ -18,7 +19,7 @@ func completeNamespaces(cmd *cobra.Command, args []string, toComplete string) (r
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -41,7 +42,7 @@ func completeNodes(cmd *cobra.Command, args []string, toComplete string) (ret []
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -64,12 +65,12 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
 
-	pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, subject.GetNamespaceListOptions(), subject.GetPodListOptions())
+	pods, err := k8s.ListCiliumManagedPods(context.Background(), clientset, subject.GetNamespaceListOptions(), subject.GetPodListOptions())
 	if err != nil {
 		return
 	}
@@ -87,7 +88,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 		return
 	}
 
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return
 	}
@@ -99,7 +100,7 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 			FieldSelector: fields.OneTermEqualSelector("metadata.name", li[0]).String(),
 		}
 		podOptions := subject.GetPodListOptions()
-		pods, err := subject.ListCiliumManagedPods(context.Background(), clientset, nsOptions, podOptions)
+		pods, err := k8s.ListCiliumManagedPods(context.Background(), clientset, nsOptions, podOptions)
 		if err != nil {
 			return
 		}

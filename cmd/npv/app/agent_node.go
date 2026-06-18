@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 func init() {
@@ -26,7 +28,7 @@ var agentNodeCmd = &cobra.Command{
 }
 
 func runAgentNode(ctx context.Context, w io.Writer, node string) error {
-	clientset, _, err := createK8sClients()
+	clientset, _, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}

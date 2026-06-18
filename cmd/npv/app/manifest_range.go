@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 var manifestRangeOptions struct {
@@ -66,7 +68,7 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
 
-	_, dynamicClient, err := createK8sClients()
+	_, dynamicClient, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
