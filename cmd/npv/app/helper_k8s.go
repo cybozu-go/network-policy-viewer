@@ -3,26 +3,21 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"strings"
 	"sync"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-
-	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	k8sMutex                sync.Mutex
-	cachedIdentities        map[uint32]*unstructured.Unstructured
-	cachedIdentityEndpoints map[uint32][]*unstructured.Unstructured
-	cachedIdentityExample   = make(map[uint32]*unstructured.Unstructured)
+	cachedIdentities        map[uint32]*ciliumv2.CiliumIdentity
+	cachedIdentityEndpoints map[uint32][]*ciliumv2.CiliumEndpoint
+	cachedIdentityExample   = make(map[uint32]*ciliumv2.CiliumEndpoint)
 )
 
 func parseNamespacedName(nn string) (types.NamespacedName, error) {
@@ -33,36 +28,27 @@ func parseNamespacedName(nn string) (types.NamespacedName, error) {
 	return types.NamespacedName{Namespace: li[0], Name: li[1]}, nil
 }
 
-func getPodIdentity(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (uint32, error) {
-	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
+func getPodIdentity(ctx context.Context, c client.Client, namespace, name string) (uint32, error) {
+	var ep ciliumv2.CiliumEndpoint
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &ep); err != nil {
 		return 0, err
 	}
-
-	identity, found, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
-	if err != nil {
-		return 0, err
-	}
-	if !found {
-		return 0, fmt.Errorf("pod %s/%s does not have security identity", namespace, name)
-	}
-
-	return uint32(identity), nil
+	return uint32(ep.Status.Identity.ID), nil
 }
 
 // key: identity number
 // value: CiliumIdentity resource
-func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[uint32]*unstructured.Unstructured, error) {
+func getIdentityResourceMap(ctx context.Context, c client.Client) (map[uint32]*ciliumv2.CiliumIdentity, error) {
 	if cachedIdentities != nil {
 		return cachedIdentities, nil
 	}
 
-	li, err := d.Resource(gvr.Identity).List(ctx, metav1.ListOptions{})
-	if err != nil {
+	var li ciliumv2.CiliumIdentityList
+	if err := c.List(ctx, &li); err != nil {
 		return nil, err
 	}
 
-	ret := make(map[uint32]*unstructured.Unstructured)
+	ret := make(map[uint32]*ciliumv2.CiliumIdentity)
 	for _, item := range li.Items {
 		id, err := strconv.Atoi(item.GetName())
 		if err != nil {
@@ -76,26 +62,19 @@ func getIdentityResourceMap(ctx context.Context, d *dynamic.DynamicClient) (map[
 
 // key: identity number
 // value: CiliumEndpoint array
-func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[uint32][]*unstructured.Unstructured, error) {
+func getIdentityEndpoints(ctx context.Context, c client.Client) (map[uint32][]*ciliumv2.CiliumEndpoint, error) {
 	if cachedIdentityEndpoints != nil {
 		return cachedIdentityEndpoints, nil
 	}
 
-	li, err := d.Resource(gvr.Endpoint).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
-	if err != nil {
+	var li ciliumv2.CiliumEndpointList
+	if err := c.List(ctx, &li); err != nil {
 		return nil, err
 	}
 
-	ret := make(map[uint32][]*unstructured.Unstructured)
+	ret := make(map[uint32][]*ciliumv2.CiliumEndpoint)
 	for _, ep := range li.Items {
-		identity64, ok, err := unstructured.NestedInt64(ep.Object, "status", "identity", "id")
-		identity := uint32(identity64)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
+		identity := uint32(ep.Status.Identity.ID)
 		ret[identity] = append(ret[identity], &ep)
 	}
 	cachedIdentityEndpoints = ret
@@ -105,7 +84,7 @@ func getIdentityEndpoints(ctx context.Context, d *dynamic.DynamicClient) (map[ui
 // getIdentityExample returns a consistent example endpoint for a CiliumIdentity within process' lifetime.
 // key: identity number
 // value: CiliumEndpoint
-func getIdentityExample(ctx context.Context, d *dynamic.DynamicClient, id uint32) (*unstructured.Unstructured, error) {
+func getIdentityExample(ctx context.Context, c client.Client, id uint32) (*ciliumv2.CiliumEndpoint, error) {
 	k8sMutex.Lock()
 	defer k8sMutex.Unlock()
 
@@ -113,7 +92,7 @@ func getIdentityExample(ctx context.Context, d *dynamic.DynamicClient, id uint32
 		return cached, nil
 	}
 
-	idEndpoints, err := getIdentityEndpoints(ctx, d)
+	idEndpoints, err := getIdentityEndpoints(ctx, c)
 	if err != nil {
 		return nil, err
 	}

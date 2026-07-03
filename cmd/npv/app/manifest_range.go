@@ -7,8 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/spf13/cobra"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 var manifestRangeOptions struct {
@@ -67,22 +68,22 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
 
-	_, dynamicClient, err := k8s.CreateClients()
+	_, c, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
 
-	fromIdentity, err := getPodIdentity(ctx, dynamicClient, from.Namespace, from.Name)
+	fromIdentity, err := getPodIdentity(ctx, c, from.Namespace, from.Name)
 	if err != nil {
 		return err
 	}
 
-	toIdentity, err := getPodIdentity(ctx, dynamicClient, to.Namespace, to.Name)
+	toIdentity, err := getPodIdentity(ctx, c, to.Namespace, to.Name)
 	if err != nil {
 		return err
 	}
 
-	idEndpoints, err := getIdentityEndpoints(ctx, dynamicClient)
+	idEndpoints, err := getIdentityEndpoints(ctx, c)
 	if err != nil {
 		return err
 	}

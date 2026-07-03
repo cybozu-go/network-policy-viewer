@@ -78,7 +78,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		return errors.New("one of --from or --to must be specified")
 	}
 
-	clientset, dynamicClient, err := k8s.CreateClients()
+	clientset, c, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 
 		switch {
 		case to != nil:
-			identity, err := getPodIdentity(ctx, dynamicClient, to.Namespace, to.Name)
+			identity, err := getPodIdentity(ctx, c, to.Namespace, to.Name)
 			if err != nil {
 				return err
 			}
@@ -110,7 +110,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return err
 		}
 
-		rules, err := runInspectOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
+		rules, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 
 		switch {
 		case from != nil:
-			identity, err := getPodIdentity(ctx, dynamicClient, from.Namespace, from.Name)
+			identity, err := getPodIdentity(ctx, c, from.Namespace, from.Name)
 			if err != nil {
 				return err
 			}
@@ -147,7 +147,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return err
 		}
 
-		rules, err := runInspectOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
+		rules, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
 		if err != nil {
 			return err
 		}

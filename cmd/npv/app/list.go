@@ -9,16 +9,17 @@ import (
 	"sort"
 	"strings"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
@@ -100,10 +101,10 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
-func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, pod *corev1.Pod) ([]listEntry, error) {
+func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -138,7 +139,7 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := k8s.CreateClients()
+	clientset, c, err := k8s.CreateClients()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
@@ -154,7 +155,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			return make([]listEntry, 0)
 		},
 		func(pod *corev1.Pod) []listEntry {
-			policy, err := runListOnPod(ctx, stderr, clientset, dynamicClient, pod)
+			policy, err := runListOnPod(ctx, stderr, clientset, c, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
@@ -167,7 +168,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	)
 
 	if listOptions.manifests {
-		return listPolicyManifests(ctx, stdout, dynamicClient, arr)
+		return listPolicyManifests(ctx, stdout, c, arr)
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
@@ -186,7 +187,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	})
 }
 
-func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynamic.DynamicClient, policyList []listEntry) error {
+func listPolicyManifests(ctx context.Context, w io.Writer, c client.Client, policyList []listEntry) error {
 	// remove direction info and sort again
 	for i := range policyList {
 		policyList[i].Direction = ""
@@ -214,29 +215,40 @@ func listPolicyManifests(ctx context.Context, w io.Writer, dynamicClient *dynami
 		first = false
 
 		isCNP := p.Kind == "CiliumNetworkPolicy"
-		var resource *unstructured.Unstructured
+		var obj map[string]any
+		var err error
 		if isCNP {
-			cnp, err := dynamicClient.Resource(gvr.NetworkPolicy).Namespace(p.Namespace).Get(ctx, p.Name, metav1.GetOptions{})
-			if err != nil {
+			var cnp ciliumv2.CiliumNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Namespace: p.Namespace, Name: p.Name}, &cnp); err != nil {
 				return err
 			}
-			resource = cnp
-		} else {
-			ccnp, err := dynamicClient.Resource(gvr.ClusterwideNetworkPolicy).Get(ctx, p.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			resource = ccnp
-		}
-		unstructured.RemoveNestedField(resource.Object, "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
-		unstructured.RemoveNestedField(resource.Object, "metadata", "creationTimestamp")
-		unstructured.RemoveNestedField(resource.Object, "metadata", "generation")
-		unstructured.RemoveNestedField(resource.Object, "metadata", "managedFields")
-		unstructured.RemoveNestedField(resource.Object, "metadata", "resourceVersion")
-		unstructured.RemoveNestedField(resource.Object, "metadata", "uid")
-		unstructured.RemoveNestedField(resource.Object, "status")
 
-		data, err := yaml.Marshal(resource.Object)
+			cnp.SetGroupVersionKind(gvk.NetworkPolicy)
+			obj, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&cnp)
+			if err != nil {
+				return err
+			}
+		} else {
+			var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Name: p.Name}, &ccnp); err != nil {
+				return err
+			}
+
+			ccnp.SetGroupVersionKind(gvk.ClusterwideNetworkPolicy)
+			obj, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&ccnp)
+			if err != nil {
+				return err
+			}
+		}
+		unstructured.RemoveNestedField(obj, "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
+		unstructured.RemoveNestedField(obj, "metadata", "creationTimestamp")
+		unstructured.RemoveNestedField(obj, "metadata", "generation")
+		unstructured.RemoveNestedField(obj, "metadata", "managedFields")
+		unstructured.RemoveNestedField(obj, "metadata", "resourceVersion")
+		unstructured.RemoveNestedField(obj, "metadata", "uid")
+		unstructured.RemoveNestedField(obj, "status")
+
+		data, err := yaml.Marshal(obj)
 		if err != nil {
 			return err
 		}

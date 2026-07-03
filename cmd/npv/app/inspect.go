@@ -11,9 +11,8 @@ import (
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
@@ -128,13 +127,13 @@ func parseInspectOptions() {
 	}
 }
 
-func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, dynamicClient *dynamic.DynamicClient, filter proxy.PolicyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, pod.Namespace, pod.Name)
+func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, c client.Client, filter proxy.PolicyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
+	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
 
-	ids, err := getIdentityResourceMap(ctx, dynamicClient)
+	ids, err := getIdentityResourceMap(ctx, c)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +163,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		}
 		entry.Namespace = "-"
 		if id, ok := ids[p.Key.Identity]; ok {
-			ns, ok, err := unstructured.NestedString(id.Object, "security-labels", "k8s:io.kubernetes.pod.namespace")
+			ns, ok := id.SecurityLabels["k8s:io.kubernetes.pod.namespace"]
 			if err != nil {
 				return nil, err
 			}
@@ -174,7 +173,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 		}
 		entry.Example = "-"
 		entry.Identity = p.Key.Identity
-		example, err := getIdentityExample(ctx, dynamicClient, p.Key.Identity)
+		example, err := getIdentityExample(ctx, c, p.Key.Identity)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +235,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	}
 	filter := proxy.MakeAllFilter(basicFilter, withFilter)
 
-	clientset, dynamicClient, err := k8s.CreateClients()
+	clientset, c, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
@@ -251,7 +250,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			return make([]inspectEntry, 0)
 		},
 		func(pod *corev1.Pod) []inspectEntry {
-			result, err := runInspectOnPod(ctx, stderr, clientset, dynamicClient, filter, pod)
+			result, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil

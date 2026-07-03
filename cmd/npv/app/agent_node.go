@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 func init() {

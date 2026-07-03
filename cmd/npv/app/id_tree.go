@@ -9,10 +9,9 @@ import (
 	"slices"
 	"strconv"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -39,7 +38,7 @@ type idTreeEntry struct {
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
-	clientset, dynamicClient, err := k8s.CreateClients()
+	clientset, c, err := k8s.CreateClients()
 	if err != nil {
 		return err
 	}
@@ -54,8 +53,8 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		nsSet[ns.Name] = struct{}{}
 	}
 
-	li, err := dynamicClient.Resource(gvr.Identity).List(ctx, subject.GetPodListOptions())
-	if err != nil {
+	var li ciliumv2.CiliumIdentityList
+	if err := c.List(ctx, &li, subject.GetClientPodListOptions()); err != nil {
 		return err
 	}
 
@@ -68,23 +67,16 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		}
 		e.identity = uint32(id)
 
-		labels, ok, err := unstructured.NestedStringMap(item.Object, "security-labels")
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		if ns, ok := labels["k8s:io.kubernetes.pod.namespace"]; ok {
+		if ns, ok := item.SecurityLabels["k8s:io.kubernetes.pod.namespace"]; ok {
 			if _, ok := nsSet[ns]; !ok {
 				continue
 			}
 		}
-		e.labels = labels
+		e.labels = item.SecurityLabels
 		items = append(items, e)
 	}
 
-	idEndpoints, err := getIdentityEndpoints(ctx, dynamicClient)
+	idEndpoints, err := getIdentityEndpoints(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -145,7 +137,7 @@ func findPrimaryKey(labelMap map[string][]string) (key string, cardinality int) 
 }
 
 // ref. https://github.com/cybozu-go/accurate/blob/main/cmd/kubectl-accurate/sub/list.go
-func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[uint32][]*unstructured.Unstructured, prefix string) error {
+func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[uint32][]*ciliumv2.CiliumEndpoint, prefix string) error {
 	const (
 		KeyColor   = 0
 		ValueColor = 32

@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -92,6 +93,13 @@ func GetPodListOptions() metav1.ListOptions {
 		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
 	}
 	return opts
+}
+
+func GetClientPodListOptions() *client.ListOptions {
+	opts := GetPodListOptions()
+	return &client.ListOptions{
+		Raw: &opts,
+	}
 }
 
 // ShouldPrintSubject reports whether the result table should include a subject row.
