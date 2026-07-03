@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -101,10 +100,10 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
-func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
+func runListOnPod(ctx context.Context, stderr io.Writer, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, c, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -139,12 +138,12 @@ func runListOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.C
 }
 
 func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, c, name)
 	if err != nil {
 		return err
 	}
@@ -155,7 +154,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 			return make([]listEntry, 0)
 		},
 		func(pod *corev1.Pod) []listEntry {
-			policy, err := runListOnPod(ctx, stderr, clientset, c, pod)
+			policy, err := runListOnPod(ctx, stderr, c, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil

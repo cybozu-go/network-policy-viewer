@@ -81,7 +81,7 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	}
 
 	// Parameters are all up, let's start querying API server
-	_, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}

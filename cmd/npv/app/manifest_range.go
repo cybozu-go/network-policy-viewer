@@ -68,7 +68,7 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 		return errors.New("--from and --to should be specified as NAMESPACE/POD")
 	}
 
-	_, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}

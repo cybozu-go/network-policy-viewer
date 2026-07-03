@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
@@ -55,12 +54,12 @@ func lessSummaryEntry(x, y *summaryEntry) bool {
 	return ret < 0
 }
 
-func runSummaryOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, c client.Client, pod *corev1.Pod) (*summaryEntry, error) {
+func runSummaryOnPod(ctx context.Context, stderr io.Writer, c client.Client, pod *corev1.Pod) (*summaryEntry, error) {
 	var entry summaryEntry
 	entry.Namespace = pod.Namespace
 	entry.Name = pod.Name
 
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, pod.Namespace, pod.Name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, c, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +85,12 @@ func runSummaryOnPod(ctx context.Context, stderr io.Writer, clientset *kubernete
 }
 
 func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, c, name)
 	if err != nil {
 		return err
 	}
@@ -101,7 +100,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			return make([]summaryEntry, 0)
 		},
 		func(pod *corev1.Pod) []summaryEntry {
-			entry, err := runSummaryOnPod(ctx, stderr, clientset, c, pod)
+			entry, err := runSummaryOnPod(ctx, stderr, c, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil

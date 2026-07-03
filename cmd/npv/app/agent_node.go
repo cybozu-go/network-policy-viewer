@@ -6,7 +6,9 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
@@ -28,20 +30,20 @@ var agentNodeCmd = &cobra.Command{
 }
 
 func runAgentNode(ctx context.Context, w io.Writer, node string) error {
-	clientset, _, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
-	if _, err = clientset.CoreV1().Nodes().Get(ctx, node, metav1.GetOptions{}); err != nil {
+	var n corev1.Node
+	if err := c.Get(ctx, types.NamespacedName{Name: node}, &n); err != nil {
 		return fmt.Errorf("failed to get node %s: %w", node, err)
 	}
 
-	pods, err := clientset.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + node,
-		LabelSelector: "k8s-app=cilium",
-	})
-	if err != nil {
+	var pods corev1.PodList
+	if err := c.List(ctx, &pods, client.InNamespace("kube-system"),
+		client.MatchingFields{"spec.nodeName": node},
+		client.MatchingLabels{"k8s-app": "cilium"}); err != nil {
 		return err
 	}
 	if num := len(pods.Items); num != 1 {

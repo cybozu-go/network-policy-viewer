@@ -11,6 +11,7 @@ import (
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
@@ -38,13 +39,13 @@ type idTreeEntry struct {
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
-	nss, err := clientset.CoreV1().Namespaces().List(ctx, subject.GetNamespaceListOptions())
-	if err != nil {
+	var nss corev1.NamespaceList
+	if err := c.List(ctx, &nss, subject.GetClientNamespaceListOptions()); err != nil {
 		return err
 	}
 

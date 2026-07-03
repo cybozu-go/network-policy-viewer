@@ -4,7 +4,6 @@ import (
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumv2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,28 +25,23 @@ func newScheme() (*runtime.Scheme, error) {
 	return scheme, nil
 }
 
-func CreateClients() (*kubernetes.Clientset, client.Client, error) {
+func NewClient() (client.Client, error) {
 	config, err := ctrl.GetConfig()
 	if err != nil {
-		return nil, nil, err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	scheme, err := newScheme()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	k8sClient, err := client.New(config, client.Options{
+	c, err := client.New(config, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return clientset, k8sClient, nil
+	return c, nil
 }

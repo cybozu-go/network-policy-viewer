@@ -31,14 +31,14 @@ var dumpCmd = &cobra.Command{
 }
 
 func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
 	selector := subject.GetSelectorConfig()
 
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, selector.Namespace, name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, c, selector.Namespace, name)
 	if err != nil {
 		return err
 	}

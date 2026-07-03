@@ -11,7 +11,6 @@ import (
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
@@ -127,8 +126,8 @@ func parseInspectOptions() {
 	}
 }
 
-func runInspectOnPod(ctx context.Context, stderr io.Writer, clientset *kubernetes.Clientset, c client.Client, filter proxy.PolicyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, c, pod.Namespace, pod.Name)
+func runInspectOnPod(ctx context.Context, stderr io.Writer, c client.Client, filter proxy.PolicyFilter, pod *corev1.Pod) ([]inspectEntry, error) {
+	client, err := proxy.CreateCiliumClient(ctx, stderr, c, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cilium client: %w", err)
 	}
@@ -235,12 +234,12 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	}
 	filter := proxy.MakeAllFilter(basicFilter, withFilter)
 
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, c, name)
 	if err != nil {
 		return err
 	}
@@ -250,7 +249,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 			return make([]inspectEntry, 0)
 		},
 		func(pod *corev1.Pod) []inspectEntry {
-			result, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
+			result, err := runInspectOnPod(ctx, stderr, c, filter, pod)
 			if err != nil {
 				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil

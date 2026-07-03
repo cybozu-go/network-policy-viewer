@@ -9,7 +9,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/u8proto"
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
@@ -78,7 +78,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		return errors.New("one of --from or --to must be specified")
 	}
 
-	clientset, c, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
@@ -105,12 +105,12 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --to or --to-cidrs must be specified")
 		}
 
-		pod, err := clientset.CoreV1().Pods(from.Namespace).Get(ctx, from.Name, metav1.GetOptions{})
-		if err != nil {
+		var pod corev1.Pod
+		if err := c.Get(ctx, *from, &pod); err != nil {
 			return err
 		}
 
-		rules, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
+		rules, err := runInspectOnPod(ctx, stderr, c, filter, &pod)
 		if err != nil {
 			return err
 		}
@@ -142,12 +142,12 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 			return errors.New("one of --from or --from-cidrs must be specified")
 		}
 
-		pod, err := clientset.CoreV1().Pods(to.Namespace).Get(ctx, to.Name, metav1.GetOptions{})
-		if err != nil {
+		var pod corev1.Pod
+		if err := c.Get(ctx, *to, &pod); err != nil {
 			return err
 		}
 
-		rules, err := runInspectOnPod(ctx, stderr, clientset, c, filter, pod)
+		rules, err := runInspectOnPod(ctx, stderr, c, filter, &pod)
 		if err != nil {
 			return err
 		}

@@ -35,12 +35,12 @@ var subjectCmd = &cobra.Command{
 }
 
 func runSubject(ctx context.Context, stdout io.Writer, name string) error {
-	clientset, _, err := k8s.CreateClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, c, name)
 	if err != nil {
 		return err
 	}
