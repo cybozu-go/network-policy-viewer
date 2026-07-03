@@ -71,7 +71,17 @@ func completePods(cmd *cobra.Command, args []string, toComplete string) (ret []s
 		return
 	}
 
-	pods, err := subject.ListCiliumManagedPods(context.Background(), c, subject.GetClientNamespaceListOptions(), subject.GetClientPodListOptions())
+	nsOptions, err := subject.GetNamespaceListOptions()
+	if err != nil {
+		return
+	}
+
+	podOptions, err := subject.GetPodListOptions()
+	if err != nil {
+		return
+	}
+
+	pods, err := subject.ListCiliumManagedPods(context.Background(), c, nsOptions, podOptions)
 	if err != nil {
 		return
 	}
@@ -100,7 +110,11 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 		nsOptions := &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector("metadata.name", li[0]),
 		}
-		podOptions := subject.GetClientPodListOptions()
+		podOptions, err := subject.GetPodListOptions()
+		if err != nil {
+			return
+		}
+
 		pods, err := subject.ListCiliumManagedPods(context.Background(), c, nsOptions, podOptions)
 		if err != nil {
 			return
@@ -111,8 +125,13 @@ func completeNamespacePods(cmd *cobra.Command, args []string, toComplete string)
 		return
 
 	default:
+		nsOptions, err := subject.GetNamespaceListOptions()
+		if err != nil {
+			return
+		}
+
 		var nss corev1.NamespaceList
-		if err := c.List(context.Background(), &nss, subject.GetClientNamespaceListOptions()); err != nil {
+		if err := c.List(context.Background(), &nss, nsOptions); err != nil {
 			return
 		}
 

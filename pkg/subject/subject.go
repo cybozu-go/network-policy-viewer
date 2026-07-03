@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -66,47 +66,42 @@ func IsMultiNamespace() bool {
 	return selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != ""
 }
 
-func GetNamespaceListOptions() metav1.ListOptions {
+func GetNamespaceListOptions() (*client.ListOptions, error) {
 	switch {
 	case selectorConfig.AllNamespaces:
-		return metav1.ListOptions{}
+		return &client.ListOptions{}, nil
 	case selectorConfig.NamespaceSelector != "":
-		return metav1.ListOptions{
-			LabelSelector: selectorConfig.NamespaceSelector,
+		selector, err := labels.Parse(selectorConfig.NamespaceSelector)
+		if err != nil {
+			return nil, err
 		}
+		return &client.ListOptions{
+			LabelSelector: selector,
+		}, nil
 	case selectorConfig.Namespace != "":
-		return metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", selectorConfig.Namespace).String(),
-		}
+		return &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", selectorConfig.Namespace),
+		}, nil
 	default:
-		return metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default").String(),
-		}
+		return &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default"),
+		}, nil
 	}
 }
 
-func GetPodListOptions() metav1.ListOptions {
-	opts := metav1.ListOptions{
-		LabelSelector: selectorConfig.PodSelector,
+func GetPodListOptions() (*client.ListOptions, error) {
+	selector, err := labels.Parse(selectorConfig.PodSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := client.ListOptions{
+		LabelSelector: selector,
 	}
 	if selectorConfig.Node != "" {
-		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
+		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node)
 	}
-	return opts
-}
-
-func GetClientNamespaceListOptions() *client.ListOptions {
-	opts := GetNamespaceListOptions()
-	return &client.ListOptions{
-		Raw: &opts,
-	}
-}
-
-func GetClientPodListOptions() *client.ListOptions {
-	opts := GetPodListOptions()
-	return &client.ListOptions{
-		Raw: &opts,
-	}
+	return &opts, nil
 }
 
 // ShouldPrintSubject reports whether the result table should include a subject row.
@@ -153,7 +148,16 @@ func ListSubjectPods(ctx context.Context, c client.Client, name string) ([]*core
 		}
 		return []*corev1.Pod{&pod}, nil
 	} else {
-		return ListCiliumManagedPods(ctx, c, GetClientNamespaceListOptions(), GetClientPodListOptions())
+		nsOptions, err := GetNamespaceListOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		podOptions, err := GetPodListOptions()
+		if err != nil {
+			return nil, err
+		}
+		return ListCiliumManagedPods(ctx, c, nsOptions, podOptions)
 	}
 }
 

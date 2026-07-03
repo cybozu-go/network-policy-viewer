@@ -44,8 +44,13 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
+	nsOptions, err := subject.GetNamespaceListOptions()
+	if err != nil {
+		return err
+	}
+
 	var nss corev1.NamespaceList
-	if err := c.List(ctx, &nss, subject.GetClientNamespaceListOptions()); err != nil {
+	if err := c.List(ctx, &nss, nsOptions); err != nil {
 		return err
 	}
 
@@ -54,8 +59,13 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		nsSet[ns.Name] = struct{}{}
 	}
 
+	podOptions, err := subject.GetPodListOptions()
+	if err != nil {
+		return err
+	}
+
 	var li ciliumv2.CiliumIdentityList
-	if err := c.List(ctx, &li, subject.GetClientPodListOptions()); err != nil {
+	if err := c.List(ctx, &li, podOptions); err != nil {
 		return err
 	}
 
