@@ -163,9 +163,6 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, c client.Client, fil
 		entry.Namespace = "-"
 		if id, ok := ids[p.Key.Identity]; ok {
 			ns, ok := id.SecurityLabels["k8s:io.kubernetes.pod.namespace"]
-			if err != nil {
-				return nil, err
-			}
 			if ok {
 				entry.Namespace = ns
 			}
