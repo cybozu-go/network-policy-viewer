@@ -8,6 +8,7 @@ import (
 	"github.com/cilium/cilium/pkg/slices"
 	"github.com/spf13/cobra"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
 
@@ -34,12 +35,12 @@ var subjectCmd = &cobra.Command{
 }
 
 func runSubject(ctx context.Context, stdout io.Writer, name string) error {
-	clientset, _, err := createK8sClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return fmt.Errorf("failed to create k8s clients: %w", err)
 	}
 
-	pods, err := subject.ListSubjectPods(ctx, clientset, name)
+	pods, err := subject.ListSubjectPods(ctx, c, name)
 	if err != nil {
 		return err
 	}

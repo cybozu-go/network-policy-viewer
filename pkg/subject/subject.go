@@ -6,9 +6,10 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -65,33 +66,42 @@ func IsMultiNamespace() bool {
 	return selectorConfig.AllNamespaces || selectorConfig.NamespaceSelector != ""
 }
 
-func GetNamespaceListOptions() metav1.ListOptions {
+func GetNamespaceListOptions() (*client.ListOptions, error) {
 	switch {
 	case selectorConfig.AllNamespaces:
-		return metav1.ListOptions{}
+		return &client.ListOptions{}, nil
 	case selectorConfig.NamespaceSelector != "":
-		return metav1.ListOptions{
-			LabelSelector: selectorConfig.NamespaceSelector,
+		selector, err := labels.Parse(selectorConfig.NamespaceSelector)
+		if err != nil {
+			return nil, err
 		}
+		return &client.ListOptions{
+			LabelSelector: selector,
+		}, nil
 	case selectorConfig.Namespace != "":
-		return metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", selectorConfig.Namespace).String(),
-		}
+		return &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", selectorConfig.Namespace),
+		}, nil
 	default:
-		return metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default").String(),
-		}
+		return &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", "default"),
+		}, nil
 	}
 }
 
-func GetPodListOptions() metav1.ListOptions {
-	opts := metav1.ListOptions{
-		LabelSelector: selectorConfig.PodSelector,
+func GetPodListOptions() (*client.ListOptions, error) {
+	selector, err := labels.Parse(selectorConfig.PodSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := client.ListOptions{
+		LabelSelector: selector,
 	}
 	if selectorConfig.Node != "" {
-		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node).String()
+		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", selectorConfig.Node)
 	}
-	return opts
+	return &opts, nil
 }
 
 // ShouldPrintSubject reports whether the result table should include a subject row.
@@ -126,32 +136,44 @@ func GetPodSubject(namespace, name string) string {
 }
 
 // ListSubjectPods returns the pods that should be examined according to the current options.
-func ListSubjectPods(ctx context.Context, clientset *kubernetes.Clientset, name string) ([]*corev1.Pod, error) {
+func ListSubjectPods(ctx context.Context, c client.Client, name string) ([]*corev1.Pod, error) {
 	if (name != "") && (IsMultiNamespace() || selectorConfig.PodSelector != "") {
 		return nil, errors.New("multiple pods should not be selected when pod name is specified")
 	}
 
 	if name != "" {
-		pod, err := clientset.CoreV1().Pods(selectorConfig.Namespace).Get(ctx, name, metav1.GetOptions{})
+		var pod corev1.Pod
+		if err := c.Get(ctx, types.NamespacedName{Namespace: selectorConfig.Namespace, Name: name}, &pod); err != nil {
+			return nil, err
+		}
+		return []*corev1.Pod{&pod}, nil
+	} else {
+		nsOptions, err := GetNamespaceListOptions()
 		if err != nil {
 			return nil, err
 		}
-		return []*corev1.Pod{pod}, nil
-	} else {
-		return ListCiliumManagedPods(ctx, clientset, GetNamespaceListOptions(), GetPodListOptions())
+
+		podOptions, err := GetPodListOptions()
+		if err != nil {
+			return nil, err
+		}
+		return ListCiliumManagedPods(ctx, c, nsOptions, podOptions)
 	}
 }
 
-func ListCiliumManagedPods(ctx context.Context, c *kubernetes.Clientset, nsOptions metav1.ListOptions, podOptions metav1.ListOptions) ([]*corev1.Pod, error) {
-	nss, err := c.CoreV1().Namespaces().List(ctx, nsOptions)
-	if err != nil {
+func ListCiliumManagedPods(ctx context.Context, c client.Client, nsOptions *client.ListOptions, podOptions *client.ListOptions) ([]*corev1.Pod, error) {
+	var nss corev1.NamespaceList
+	if err := c.List(ctx, &nss, nsOptions); err != nil {
 		return nil, err
 	}
 
 	ret := make([]*corev1.Pod, 0)
 	for _, n := range nss.Items {
-		pods, err := c.CoreV1().Pods(n.Name).List(ctx, podOptions)
-		if err != nil {
+		opts := *podOptions
+		opts.Namespace = n.Name
+
+		var pods corev1.PodList
+		if err := c.List(ctx, &pods, &opts); err != nil {
 			return nil, err
 		}
 

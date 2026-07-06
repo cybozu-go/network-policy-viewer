@@ -17,16 +17,18 @@ import (
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumv2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"golang.org/x/mod/semver"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
-	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
 )
 
 type Config struct {
@@ -38,10 +40,10 @@ type Config struct {
 type Client struct {
 	*client.Client
 
-	dynamicClient *dynamic.DynamicClient
-	node          string
-	endpointURL   string
-	cidrGroups    map[string][]netip.Prefix
+	k8sClient   k8sclient.Client
+	node        string
+	endpointURL string
+	cidrGroups  map[string][]netip.Prefix
 
 	prefixIdentities []netip.Prefix
 	identityPrefixes map[uint32][]netip.Prefix
@@ -78,25 +80,31 @@ func SetConfig(c *Config) {
 	config = c
 }
 
-func getPodNodeName(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
-	pod, err := c.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
+func getPodNodeName(ctx context.Context, c k8sclient.Client, namespace, name string) (string, error) {
+	var pod corev1.Pod
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &pod); err != nil {
 		return "", err
 	}
 	return pod.Spec.NodeName, nil
 }
 
-func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, name string) (string, error) {
+func getProxyEndpoint(ctx context.Context, c k8sclient.Client, namespace, name string) (string, error) {
+	selector, err := k8slabels.Parse(config.Selector)
+	if err != nil {
+		return "", err
+	}
+
 	targetNode, err := getPodNodeName(ctx, c, namespace, name)
 	if err != nil {
 		return "", err
 	}
 
-	pods, err := c.CoreV1().Pods(config.Namespace).List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + targetNode,
-		LabelSelector: config.Selector,
-	})
-	if err != nil {
+	var pods corev1.PodList
+	if err := c.List(ctx, &pods, &k8sclient.ListOptions{
+		Namespace:     config.Namespace,
+		FieldSelector: fields.OneTermEqualSelector("spec.nodeName", targetNode),
+		LabelSelector: selector,
+	}); err != nil {
 		return "", err
 	}
 	if num := len(pods.Items); num != 1 {
@@ -108,45 +116,29 @@ func getProxyEndpoint(ctx context.Context, c *kubernetes.Clientset, namespace, n
 	return fmt.Sprintf("http://%s:%d", podIP, config.Port), nil
 }
 
-func getPodEndpointID(ctx context.Context, d *dynamic.DynamicClient, namespace, name string) (int64, error) {
-	ep, err := d.Resource(gvr.Endpoint).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
+func getPodEndpointID(ctx context.Context, c k8sclient.Client, namespace, name string) (int64, error) {
+	var ep ciliumv2.CiliumEndpoint
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, &ep); err != nil {
 		return 0, err
 	}
-
-	endpointID, found, err := unstructured.NestedInt64(ep.Object, "status", "id")
-	if err != nil {
-		return 0, err
-	}
-	if !found {
-		return 0, fmt.Errorf("endpoint resource %s/%s is broken", namespace, name)
-	}
-
-	return endpointID, nil
+	return ep.Status.ID, nil
 }
 
-func fetchCIDRGroupsLocked(ctx context.Context, d *dynamic.DynamicClient) error {
+func fetchCIDRGroupsLocked(ctx context.Context, c k8sclient.Client) error {
 	if cachedCIDRGroups != nil {
 		return nil
 	}
 
-	tmp := make(map[string][]netip.Prefix)
-	resources, err := d.Resource(gvr.CIDRGroup).List(ctx, metav1.ListOptions{})
-	if err != nil {
+	var resources ciliumv2alpha1.CiliumCIDRGroupList
+	if err := c.List(ctx, &resources); err != nil {
 		return err
 	}
-	for _, g := range resources.Items {
-		cidrStrings, ok, err := unstructured.NestedStringSlice(g.Object, "spec", "externalCIDRs")
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
 
-		cidrs := make([]netip.Prefix, len(cidrStrings))
-		for i, cs := range cidrStrings {
-			c, err := netip.ParsePrefix(cs)
+	tmp := make(map[string][]netip.Prefix)
+	for _, g := range resources.Items {
+		cidrs := make([]netip.Prefix, len(g.Spec.ExternalCIDRs))
+		for i, cs := range g.Spec.ExternalCIDRs {
+			c, err := netip.ParsePrefix(string(cs))
 			if err != nil {
 				return err
 			}
@@ -158,11 +150,11 @@ func fetchCIDRGroupsLocked(ctx context.Context, d *dynamic.DynamicClient) error 
 	return nil
 }
 
-func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Clientset, d *dynamic.DynamicClient, namespace, name string) (*Client, error) {
+func CreateCiliumClient(ctx context.Context, stderr io.Writer, c k8sclient.Client, namespace, name string) (*Client, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
 
-	if err := fetchCIDRGroupsLocked(ctx, d); err != nil {
+	if err := fetchCIDRGroupsLocked(ctx, c); err != nil {
 		return nil, err
 	}
 
@@ -186,7 +178,7 @@ func CreateCiliumClient(ctx context.Context, stderr io.Writer, c *kubernetes.Cli
 	}
 	proxy := &Client{
 		Client:           ciliumClient,
-		dynamicClient:    d,
+		k8sClient:        c,
 		node:             targetNode,
 		endpointURL:      endpoint,
 		cidrGroups:       cachedCIDRGroups,
@@ -253,7 +245,7 @@ func (c *Client) testAgentVersion(ctx context.Context, stderr io.Writer) error {
 }
 
 func (c *Client) DumpEndpoint(ctx context.Context, namespace, name string) ([]byte, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
+	endpointID, err := getPodEndpointID(ctx, c.k8sClient, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +254,7 @@ func (c *Client) DumpEndpoint(ctx context.Context, namespace, name string) ([]by
 }
 
 func (c *Client) GetEndpointResponse(ctx context.Context, namespace, name string) (*endpoint.GetEndpointIDOK, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
+	endpointID, err := getPodEndpointID(ctx, c.k8sClient, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +402,7 @@ func (c *Client) GetCIDRForIdentity(ctx context.Context, id uint32) (*cidr.Set, 
 }
 
 func (c *Client) QueryPolicyMap(ctx context.Context, namespace, name string) ([]PolicyEntry, error) {
-	endpointID, err := getPodEndpointID(ctx, c.dynamicClient, namespace, name)
+	endpointID, err := getPodEndpointID(ctx, c.k8sClient, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod endpoint ID: %w", err)
 	}

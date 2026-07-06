@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -30,14 +31,14 @@ var dumpCmd = &cobra.Command{
 }
 
 func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
-	clientset, dynamicClient, err := createK8sClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
 	selector := subject.GetSelectorConfig()
 
-	client, err := proxy.CreateCiliumClient(ctx, stderr, clientset, dynamicClient, selector.Namespace, name)
+	client, err := proxy.CreateCiliumClient(ctx, stderr, c, selector.Namespace, name)
 	if err != nil {
 		return err
 	}

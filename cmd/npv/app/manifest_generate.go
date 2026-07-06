@@ -7,13 +7,14 @@ import (
 	"io"
 	"strconv"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
-	"github.com/cybozu-go/network-policy-viewer/pkg/gvr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 )
 
 var manifestGenerateOptions struct {
@@ -80,45 +81,28 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	}
 
 	// Parameters are all up, let's start querying API server
-	_, dynamicClient, err := createK8sClients()
+	c, err := k8s.NewClient()
 	if err != nil {
 		return err
 	}
 
-	subIdentity, err := getPodIdentity(ctx, dynamicClient, sub.Namespace, sub.Name)
+	subIdentity, err := getPodIdentity(ctx, c, sub.Namespace, sub.Name)
 	if err != nil {
 		return err
 	}
 
-	subResource, err := dynamicClient.Resource(gvr.Identity).Get(ctx, strconv.Itoa(int(subIdentity)), metav1.GetOptions{})
+	objIdentity, err := getPodIdentity(ctx, c, obj.Namespace, obj.Name)
 	if err != nil {
 		return err
 	}
 
-	subLabels, ok, err := unstructured.NestedStringMap(subResource.Object, "security-labels")
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("pod %s/%s is not assigned security labels", sub.Namespace, sub.Name)
-	}
-
-	objIdentity, err := getPodIdentity(ctx, dynamicClient, obj.Namespace, obj.Name)
-	if err != nil {
+	var subResource, objResource ciliumv2.CiliumIdentity
+	if err := c.Get(ctx, types.NamespacedName{Name: strconv.Itoa(int(subIdentity))}, &subResource); err != nil {
 		return err
 	}
 
-	objResource, err := dynamicClient.Resource(gvr.Identity).Get(ctx, strconv.Itoa(int(objIdentity)), metav1.GetOptions{})
-	if err != nil {
+	if err := c.Get(ctx, types.NamespacedName{Name: strconv.Itoa(int(objIdentity))}, &objResource); err != nil {
 		return err
-	}
-
-	objLabels, ok, err := unstructured.NestedStringMap(objResource.Object, "security-labels")
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return fmt.Errorf("pod %s/%s is not assigned security labels", obj.Namespace, obj.Name)
 	}
 
 	policyName := manifestGenerateOptions.name
@@ -138,13 +122,13 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	manifest.SetGroupVersionKind(gvk.NetworkPolicy)
 	manifest.SetNamespace(sub.Namespace)
 	manifest.SetName(policyName)
-	err = unstructured.SetNestedStringMap(manifest.Object, subLabels, "spec", "endpointSelector", "matchLabels")
+	err = unstructured.SetNestedStringMap(manifest.Object, subResource.SecurityLabels, "spec", "endpointSelector", "matchLabels")
 	if err != nil {
 		return err
 	}
 
 	objMap := make(map[string]any)
-	for k, v := range objLabels {
+	for k, v := range objResource.SecurityLabels {
 		objMap[k] = v
 	}
 
