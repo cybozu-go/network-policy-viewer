@@ -10,6 +10,7 @@ RUN go mod download
 
 # Copy the go source
 COPY cmd/cilium-agent-proxy/ cmd/cilium-agent-proxy/
+COPY pkg/server/ pkg/server/
 COPY Makefile Makefile
 
 # Build

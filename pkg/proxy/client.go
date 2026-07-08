@@ -36,6 +36,7 @@ import (
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/server"
 )
 
 type Config struct {
@@ -86,6 +87,7 @@ func init() {
 			break
 		}
 	}
+	config = &Config{}
 }
 
 func SetConfig(c *Config) {
@@ -128,12 +130,12 @@ func getProxyEndpoint(ctx context.Context, c k8sclient.Client, namespace, name s
 	port := config.Port
 	if config.TLS {
 		if port == 0 {
-			port = 8443
+			port = server.DefaultHTTPSPort
 		}
 		return fmt.Sprintf("https://%s:%d", podIP, port), nil
 	} else {
 		if port == 0 {
-			port = 8080
+			port = server.DefaultHTTPPort
 		}
 		return fmt.Sprintf("http://%s:%d", podIP, port), nil
 	}
@@ -174,8 +176,8 @@ func fetchCIDRGroupsLocked(ctx context.Context, c k8sclient.Client) error {
 }
 
 func newHTTPClient() (*http.Client, error) {
-	if config == nil || !config.TLS {
-		if config != nil && (config.TLSCAFile != "" || config.TLSServerName != "" || config.TLSInsecureSkipVerify) {
+	if !config.TLS {
+		if config.TLSCAFile != "" || config.TLSServerName != "" || config.TLSInsecureSkipVerify {
 			return nil, errors.New("proxy TLS options require --proxy-tls")
 		}
 		return http.DefaultClient, nil
@@ -287,12 +289,7 @@ func (c *Client) queryProxy(ctx context.Context, path string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	httpClient := c.httpClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
