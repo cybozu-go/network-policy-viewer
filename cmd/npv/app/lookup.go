@@ -162,6 +162,8 @@ func runLookup(ctx context.Context, stdout io.Writer, name string) error {
 	if err := c.List(ctx, &ccnpList); err != nil {
 		return err
 	}
+
+ccnpLoop:
 	for _, ccnp := range ccnpList.Items {
 		rules, err := ccnp.Parse()
 		if err != nil {
@@ -173,6 +175,7 @@ func runLookup(ctx context.Context, stdout io.Writer, name string) error {
 			if commonOptions.manifests {
 				if len(matchIDs) > 0 {
 					ccnps = append(ccnps, &ccnp)
+					continue ccnpLoop
 				}
 			} else {
 				for _, id := range matchIDs {
@@ -194,6 +197,8 @@ func runLookup(ctx context.Context, stdout io.Writer, name string) error {
 	if err := c.List(ctx, &cnpList); err != nil {
 		return err
 	}
+
+cnpLoop:
 	for _, cnp := range cnpList.Items {
 		rules, err := cnp.Parse()
 		if err != nil {
@@ -205,6 +210,7 @@ func runLookup(ctx context.Context, stdout io.Writer, name string) error {
 			if commonOptions.manifests {
 				if len(matchIDs) > 0 {
 					cnps = append(cnps, &cnp)
+					continue cnpLoop
 				}
 			} else {
 				for _, id := range matchIDs {
