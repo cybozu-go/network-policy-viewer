@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"slices"
@@ -156,6 +158,10 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func subMain() error {
+	if (rootOptions.tlsCertFile == "") != (rootOptions.tlsPrivateKeyFile == "") {
+		return fmt.Errorf("--tls-cert-file and --tls-private-key-file must be specified together")
+	}
+
 	socketClient = &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -164,9 +170,18 @@ func subMain() error {
 		},
 	}
 
+	useTLS := rootOptions.tlsCertFile != ""
+	addr := ":8080"
+	if useTLS {
+		addr = ":8443"
+	}
+
 	server := http.Server{
-		Addr:    ":8080",
+		Addr:    addr,
 		Handler: nil,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
 	}
 
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
@@ -174,5 +189,10 @@ func subMain() error {
 	http.HandleFunc("/policy/", handlePolicy)
 	http.HandleFunc("/version", handleVersion)
 
+	if rootOptions.tlsCertFile != "" {
+		slog.Info(fmt.Sprintf("starting cilium-agent-proxy with TLS enabled on %s", addr))
+		return server.ListenAndServeTLS(rootOptions.tlsCertFile, rootOptions.tlsPrivateKeyFile)
+	}
+	slog.Info(fmt.Sprintf("starting cilium-agent-proxy with TLS disabled on %s", addr))
 	return server.ListenAndServe()
 }

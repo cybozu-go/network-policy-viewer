@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var rootOptions struct {
+	tlsCertFile       string
+	tlsPrivateKeyFile string
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "cilium-agent-proxy",
 	Short: "cilium-agent proxy",
@@ -16,6 +21,11 @@ var rootCmd = &cobra.Command{
 		cmd.SilenceUsage = true
 		return subMain()
 	},
+}
+
+func init() {
+	rootCmd.Flags().StringVar(&rootOptions.tlsCertFile, "tls-cert-file", "", "TLS certificate file for serving HTTPS")
+	rootCmd.Flags().StringVar(&rootOptions.tlsPrivateKeyFile, "tls-private-key-file", "", "TLS private key file for serving HTTPS")
 }
 
 func Execute() {

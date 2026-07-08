@@ -1,0 +1,32 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cilium-agent-proxy-tls
+  namespace: cilium-agent-proxy
+spec:
+  secretName: cilium-agent-proxy-tls
+
+  # Replace this with the Issuer/ClusterIssuer used in your environment.
+  issuerRef:
+    name: cluster-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+  # Use SANs rather than relying on commonName.
+  dnsNames:
+    - cilium-agent-proxy
+    - cilium-agent-proxy.cilium-agent-proxy
+    - cilium-agent-proxy.cilium-agent-proxy.svc
+    - cilium-agent-proxy.cilium-agent-proxy.svc.cluster.local
+
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d

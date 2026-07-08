@@ -11,6 +11,7 @@ HELM := helm --content-cache $(CACHE_DIR)/helm/content
 # https://github.com/kubernetes-sigs/kind/issues/4028
 CILIUM_IMAGE := quay.io/cilium/cilium:v1.17.16
 CILIUM_CHART := oci://quay.io/cilium/charts/cilium:1.17.16@sha256:d707d52d83d4b33acfc3ce0aa3cc1296863249866f3d8cda48e78b7b3442d92b
+CERT_MANAGER_CHART := oci://quay.io/jetstack/charts/cert-manager:v1.20.3@sha256:ef5cf71fc9494e8b06b2f7450e9e31fcb6b78bca1af415f6e2149e744e98faa2
 
 DEPLOYMENT_REPLICAS ?= 1
 
@@ -38,6 +39,11 @@ start:
 		--set envoy.enabled=false \
 		--set image.pullPolicy=IfNotPresent \
 		--set ipam.mode=kubernetes
+
+	$(HELM) install cert-manager $(CERT_MANAGER_CHART) \
+		--namespace cert-manager \
+		--create-namespace \
+		--set crds.enabled=true
 
 	cd ..; docker build . -t cilium-agent-proxy:dev
 	kind load docker-image cilium-agent-proxy:dev
