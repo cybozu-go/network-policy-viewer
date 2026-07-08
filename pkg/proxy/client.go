@@ -2,18 +2,23 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"os"
 	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
+	apiclient "github.com/cilium/cilium/api/v1/client"
 	"github.com/cilium/cilium/api/v1/client/endpoint"
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/client"
@@ -21,6 +26,8 @@ import (
 	ciliumv2alpha1 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
+	runtimeclient "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -32,9 +39,13 @@ import (
 )
 
 type Config struct {
-	Namespace string
-	Selector  string
-	Port      uint16
+	Namespace             string
+	Selector              string
+	Port                  uint16
+	TLS                   bool
+	TLSCAFile             string
+	TLSServerName         string
+	TLSInsecureSkipVerify bool
 }
 
 type Client struct {
@@ -43,8 +54,9 @@ type Client struct {
 	k8sClient   k8sclient.Client
 	node        string
 	endpointURL string
-	cidrGroups  map[string][]netip.Prefix
+	httpClient  *http.Client
 
+	cidrGroups       map[string][]netip.Prefix
 	prefixIdentities []netip.Prefix
 	identityPrefixes map[uint32][]netip.Prefix
 	identityCIDRSets map[uint32]cidr.Set
@@ -113,7 +125,18 @@ func getProxyEndpoint(ctx context.Context, c k8sclient.Client, namespace, name s
 	}
 
 	podIP := pods.Items[0].Status.PodIP
-	return fmt.Sprintf("http://%s:%d", podIP, config.Port), nil
+	port := config.Port
+	if config.TLS {
+		if port == 0 {
+			port = 8443
+		}
+		return fmt.Sprintf("https://%s:%d", podIP, port), nil
+	} else {
+		if port == 0 {
+			port = 8080
+		}
+		return fmt.Sprintf("http://%s:%d", podIP, port), nil
+	}
 }
 
 func getPodEndpointID(ctx context.Context, c k8sclient.Client, namespace, name string) (int64, error) {
@@ -150,6 +173,64 @@ func fetchCIDRGroupsLocked(ctx context.Context, c k8sclient.Client) error {
 	return nil
 }
 
+func newHTTPClient() (*http.Client, error) {
+	if config == nil || !config.TLS {
+		if config != nil && (config.TLSCAFile != "" || config.TLSServerName != "" || config.TLSInsecureSkipVerify) {
+			return nil, errors.New("proxy TLS options require --proxy-tls")
+		}
+		return http.DefaultClient, nil
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		ServerName:         config.TLSServerName,
+		InsecureSkipVerify: config.TLSInsecureSkipVerify,
+	}
+
+	if config.TLSCAFile != "" {
+		roots := x509.NewCertPool()
+		data, err := os.ReadFile(config.TLSCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read proxy TLS CA file: %w", err)
+		}
+
+		if ok := roots.AppendCertsFromPEM(data); !ok {
+			return nil, fmt.Errorf("failed to parse proxy TLS CA file %q", config.TLSCAFile)
+		}
+		tlsConfig.RootCAs = roots
+	}
+
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("http.DefaultTransport is not *http.Transport")
+	}
+
+	transport := baseTransport.Clone()
+	transport.TLSClientConfig = tlsConfig
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
+}
+
+func newCiliumClient(endpoint string, httpClient *http.Client) (*client.Client, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy endpoint URL: %w", err)
+	}
+
+	transport := runtimeclient.NewWithClient(
+		u.Host,
+		apiclient.DefaultBasePath,
+		[]string{u.Scheme},
+		httpClient,
+	)
+
+	return &client.Client{
+		CiliumAPI: *apiclient.New(transport, strfmt.Default),
+	}, nil
+}
+
 func CreateCiliumClient(ctx context.Context, stderr io.Writer, c k8sclient.Client, namespace, name string) (*Client, error) {
 	proxyMutex.Lock()
 	defer proxyMutex.Unlock()
@@ -172,7 +253,12 @@ func CreateCiliumClient(ctx context.Context, stderr io.Writer, c k8sclient.Clien
 		return cached, nil
 	}
 
-	ciliumClient, err := client.NewClient(endpoint)
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ciliumClient, err := newCiliumClient(endpoint, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +267,7 @@ func CreateCiliumClient(ctx context.Context, stderr io.Writer, c k8sclient.Clien
 		k8sClient:        c,
 		node:             targetNode,
 		endpointURL:      endpoint,
+		httpClient:       httpClient,
 		cidrGroups:       cachedCIDRGroups,
 		identityCIDRSets: make(map[uint32]cidr.Set),
 	}
@@ -200,7 +287,12 @@ func (c *Client) queryProxy(ctx context.Context, path string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := c.httpClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}

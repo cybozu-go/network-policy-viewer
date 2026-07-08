@@ -16,13 +16,17 @@ import (
 )
 
 const (
-	flagProxyNamespace = "proxy-namespace"
-	flagProxySelector  = "proxy-selector"
-	flagProxyPort      = "proxy-port"
-	flagOutput         = "output"
-	flagNoHeaders      = "no-headers"
-	flagUnits          = "units"
-	flagJobs           = "jobs"
+	flagProxyNamespace             = "proxy-namespace"
+	flagProxySelector              = "proxy-selector"
+	flagProxyPort                  = "proxy-port"
+	flagProxyTLS                   = "proxy-tls"
+	flagProxyTLSCAFile             = "proxy-tls-ca-file"
+	flagProxyTLSServerName         = "proxy-tls-server-name"
+	flagProxyTLSInsecureSkipVerify = "proxy-tls-insecure-skip-verify"
+	flagOutput                     = "output"
+	flagNoHeaders                  = "no-headers"
+	flagUnits                      = "units"
+	flagJobs                       = "jobs"
 
 	flagGroup             = "group"
 	flagAllNamespaces     = "all-namespaces"
@@ -50,9 +54,13 @@ func fillRootOptions() error {
 	rootOptions.jobs = viper.GetInt(flagJobs)
 
 	proxy.SetConfig(&proxy.Config{
-		Namespace: viper.GetString(flagProxyNamespace),
-		Selector:  viper.GetString(flagProxySelector),
-		Port:      viper.GetUint16(flagProxyPort),
+		Namespace:             viper.GetString(flagProxyNamespace),
+		Selector:              viper.GetString(flagProxySelector),
+		Port:                  viper.GetUint16(flagProxyPort),
+		TLS:                   viper.GetBool(flagProxyTLS),
+		TLSCAFile:             viper.GetString(flagProxyTLSCAFile),
+		TLSServerName:         viper.GetString(flagProxyTLSServerName),
+		TLSInsecureSkipVerify: viper.GetBool(flagProxyTLSInsecureSkipVerify),
 	})
 	return nil
 }
@@ -187,7 +195,11 @@ func fillOptions(cmd *cobra.Command) error {
 func init() {
 	rootCmd.PersistentFlags().String(flagProxyNamespace, "cilium-agent-proxy", "namespace of the proxy pods")
 	rootCmd.PersistentFlags().String(flagProxySelector, "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
-	rootCmd.PersistentFlags().Uint16(flagProxyPort, 8080, "port number of the proxy endpoints")
+	rootCmd.PersistentFlags().Uint16(flagProxyPort, 0, "port number of the proxy endpoints")
+	rootCmd.PersistentFlags().Bool(flagProxyTLS, false, "use HTTPS to connect to proxy endpoints")
+	rootCmd.PersistentFlags().String(flagProxyTLSCAFile, "", "CA certificate file to verify proxy endpoints")
+	rootCmd.PersistentFlags().String(flagProxyTLSServerName, "", "server name used to verify proxy TLS certificates")
+	rootCmd.PersistentFlags().Bool(flagProxyTLSInsecureSkipVerify, false, "skip proxy TLS certificate verification")
 	rootCmd.PersistentFlags().StringP(flagOutput, "o", output.FormatSimple, "output format")
 	rootCmd.PersistentFlags().Bool(flagNoHeaders, false, "stop printing header")
 	rootCmd.PersistentFlags().BoolP(flagUnits, "u", false, "use human-readable units (power of 1024) for traffic volume")

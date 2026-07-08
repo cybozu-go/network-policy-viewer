@@ -25,7 +25,8 @@ func testSubject() {
 		// npv subject --group=ns should display subjects as NS
 		{
 			Args: []string{"-A", "--group=ns"},
-			Expected: `cilium-agent-proxy
+			Expected: `cert-manager
+cilium-agent-proxy
 default
 kube-system
 local-path-storage
