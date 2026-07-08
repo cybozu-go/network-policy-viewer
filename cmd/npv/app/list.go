@@ -12,33 +12,27 @@ import (
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/gvk"
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
-
-var listOptions struct {
-	manifests bool
-}
 
 func init() {
 	addGroupOption(listCmd)
 	addPodSelectorOption(listCmd)
 	addDirectionOption(listCmd)
-	listCmd.Flags().BoolVarP(&listOptions.manifests, "manifests", "m", false, "show policy manifests")
+	addManifestOption(listCmd)
 	rootCmd.AddCommand(listCmd)
 }
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "list network policies applied to a pod",
+	Short: "List network policies applied to a pod",
 	Long:  `List network policies applied to a pod`,
 
 	Args: cobra.RangeArgs(0, 1),
@@ -86,6 +80,9 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 		Subject:   subject,
 		Direction: direction,
 		Namespace: "-",
+	}
+	if commonOptions.manifests {
+		val.Direction = ""
 	}
 	for _, s := range input {
 		switch {
@@ -166,8 +163,25 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		},
 	)
 
-	if listOptions.manifests {
-		return listPolicyManifests(ctx, stdout, c, arr)
+	if commonOptions.manifests {
+		ccnps := make([]*ciliumv2.CiliumClusterwideNetworkPolicy, 0)
+		cnps := make([]*ciliumv2.CiliumNetworkPolicy, 0)
+		for _, p := range arr {
+			if p.Kind == gvk.ClusterwideNetworkPolicy.Kind {
+				var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
+				if err := c.Get(ctx, types.NamespacedName{Name: p.Name}, &ccnp); err != nil {
+					return err
+				}
+				ccnps = append(ccnps, &ccnp)
+			} else {
+				var cnp ciliumv2.CiliumNetworkPolicy
+				if err := c.Get(ctx, types.NamespacedName{Namespace: p.Namespace, Name: p.Name}, &cnp); err != nil {
+					return err
+				}
+				cnps = append(cnps, &cnp)
+			}
+		}
+		return output.WriteManifests(stdout, ccnps, cnps)
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
@@ -175,7 +189,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
-	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
+	return output.WriteSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		subValues := []any{p.Subject, "|"}
 		values := []any{p.Direction, "|", p.Kind, p.Namespace, p.Name}
@@ -184,76 +198,4 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		}
 		return values
 	})
-}
-
-func listPolicyManifests(ctx context.Context, w io.Writer, c client.Client, policyList []listEntry) error {
-	// remove direction info and sort again
-	for i := range policyList {
-		policyList[i].Direction = ""
-	}
-	sort.Slice(policyList, func(i, j int) bool { return compareListEntry(&policyList[i], &policyList[j]) < 0 })
-
-	var previous types.NamespacedName
-	first := true
-	for _, p := range policyList {
-		// a same policy may appear twice from egress and ingress rules, so we need to dedup them
-		next := types.NamespacedName{
-			Namespace: p.Namespace,
-			Name:      p.Name,
-		}
-		if previous == next {
-			continue
-		}
-		previous = next
-
-		if !first {
-			if _, err := fmt.Fprintln(w, "---"); err != nil {
-				return err
-			}
-		}
-		first = false
-
-		isCNP := p.Kind == "CiliumNetworkPolicy"
-		var obj map[string]any
-		var err error
-		if isCNP {
-			var cnp ciliumv2.CiliumNetworkPolicy
-			if err := c.Get(ctx, types.NamespacedName{Namespace: p.Namespace, Name: p.Name}, &cnp); err != nil {
-				return err
-			}
-
-			cnp.SetGroupVersionKind(gvk.NetworkPolicy)
-			obj, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&cnp)
-			if err != nil {
-				return err
-			}
-		} else {
-			var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
-			if err := c.Get(ctx, types.NamespacedName{Name: p.Name}, &ccnp); err != nil {
-				return err
-			}
-
-			ccnp.SetGroupVersionKind(gvk.ClusterwideNetworkPolicy)
-			obj, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&ccnp)
-			if err != nil {
-				return err
-			}
-		}
-		unstructured.RemoveNestedField(obj, "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
-		unstructured.RemoveNestedField(obj, "metadata", "creationTimestamp")
-		unstructured.RemoveNestedField(obj, "metadata", "generation")
-		unstructured.RemoveNestedField(obj, "metadata", "managedFields")
-		unstructured.RemoveNestedField(obj, "metadata", "resourceVersion")
-		unstructured.RemoveNestedField(obj, "metadata", "uid")
-		unstructured.RemoveNestedField(obj, "status")
-
-		data, err := yaml.Marshal(obj)
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(w, "%s", string(data)); err != nil {
-			return err
-		}
-	}
-	return nil
 }

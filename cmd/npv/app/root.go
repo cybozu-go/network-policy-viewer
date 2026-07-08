@@ -10,13 +10,9 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
-)
-
-const (
-	OutputJson   = "json"
-	OutputSimple = "simple"
 )
 
 const (
@@ -44,8 +40,12 @@ var rootOptions struct {
 }
 
 func fillRootOptions() error {
-	rootOptions.output = viper.GetString(flagOutput)
-	rootOptions.noHeaders = viper.GetBool(flagNoHeaders)
+	oc := output.Config{
+		Format:    viper.GetString(flagOutput),
+		NoHeaders: viper.GetBool(flagNoHeaders),
+	}
+	output.SetConfig(&oc)
+
 	rootOptions.units = viper.GetBool(flagUnits)
 	rootOptions.jobs = viper.GetInt(flagJobs)
 
@@ -62,6 +62,9 @@ func fillGroupOptions(cmd *cobra.Command) error {
 		group, err := cmd.Flags().GetString(flagGroup)
 		if err != nil {
 			return err
+		}
+		if commonOptions.manifests {
+			group = subject.GroupAll
 		}
 		if err := subject.SetGroup(group); err != nil {
 			return err
@@ -151,7 +154,8 @@ func fillSelectorOptions(cmd *cobra.Command) error {
 }
 
 var commonOptions struct {
-	with cidrOptions
+	with      cidrOptions
+	manifests bool
 }
 
 var policyOptions struct {
@@ -184,7 +188,7 @@ func init() {
 	rootCmd.PersistentFlags().String(flagProxyNamespace, "cilium-agent-proxy", "namespace of the proxy pods")
 	rootCmd.PersistentFlags().String(flagProxySelector, "app.kubernetes.io/name=cilium-agent-proxy", "label selector to find the proxy pods")
 	rootCmd.PersistentFlags().Uint16(flagProxyPort, 8080, "port number of the proxy endpoints")
-	rootCmd.PersistentFlags().StringP(flagOutput, "o", OutputSimple, "output format")
+	rootCmd.PersistentFlags().StringP(flagOutput, "o", output.FormatSimple, "output format")
 	rootCmd.PersistentFlags().Bool(flagNoHeaders, false, "stop printing header")
 	rootCmd.PersistentFlags().BoolP(flagUnits, "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.PersistentFlags().IntP(flagJobs, "j", 4, "number of parallel queries")
@@ -261,6 +265,10 @@ func parseCIDROptions(ingress, egress bool, prefix string, opts *cidrOptions) (p
 	default:
 		return nil, fmt.Errorf("one of --%s-cidrs, --%s-private-cidrs, --%s-public-cidrs can be specified", prefix, prefix, prefix)
 	}
+}
+
+func addManifestOption(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&commonOptions.manifests, "manifests", "m", false, "show policy manifests")
 }
 
 var rootCmd = &cobra.Command{

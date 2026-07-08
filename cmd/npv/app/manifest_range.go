@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 )
 
 var manifestRangeOptions struct {
@@ -107,7 +108,7 @@ func runManifestRange(ctx context.Context, w io.Writer) error {
 		}
 		arr = append(arr, entry)
 	}
-	return writeSimpleOrJson(w, arr, []string{"PART", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
+	return output.WriteSimpleOrJson(w, arr, []string{"PART", "NAMESPACE", "NAME"}, len(arr), func(index int) []any {
 		ep := arr[index]
 		return []any{ep.Part, ep.Namespace, ep.Name}
 	})

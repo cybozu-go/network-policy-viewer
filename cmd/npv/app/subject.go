@@ -20,7 +20,7 @@ func init() {
 
 var subjectCmd = &cobra.Command{
 	Use:   "subject",
-	Short: "list subjects with current selector and group options",
+	Short: "List subjects with current selector and group options",
 	Long:  `List subjects with current selector and group options`,
 
 	Args: cobra.RangeArgs(0, 1),

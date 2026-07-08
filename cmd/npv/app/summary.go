@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -117,7 +118,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	sort.Slice(summary, func(i, j int) bool { return lessSummaryEntry(&summary[i], &summary[j]) })
 
 	header := []string{"NAMESPACE", "NAME", "INGRESS-ALLOW", "INGRESS-DENY", "EGRESS-ALLOW", "EGRESS-DENY"}
-	return writeSimpleOrJson(stdout, summary, header, len(summary), func(index int) []any {
+	return output.WriteSimpleOrJson(stdout, summary, header, len(summary), func(index int) []any {
 		p := summary[index]
 		return []any{p.Namespace, p.Name, p.IngressAllow, p.IngressDeny, p.EgressAllow, p.EgressDeny}
 	})

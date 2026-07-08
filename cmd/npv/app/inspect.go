@@ -15,6 +15,7 @@ import (
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/cidr"
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
+	"github.com/cybozu-go/network-policy-viewer/pkg/output"
 	"github.com/cybozu-go/network-policy-viewer/pkg/proxy"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
 )
@@ -263,7 +264,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	if subject.ShouldPrintSubject(name) {
 		header = append(subHeader, header...)
 	}
-	return writeSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
+	return output.WriteSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
 		protocol := u8proto.U8proto(p.Protocol).String()
 		var port string
@@ -274,7 +275,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		}
 		var example any
 		example = p.Example
-		if (rootOptions.output == OutputSimple) && strings.HasPrefix(p.Example, "cidr:") {
+		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
 			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
 			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
 			if strings.Contains(p.Example, ",") {

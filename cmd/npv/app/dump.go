@@ -20,7 +20,7 @@ func init() {
 
 var dumpCmd = &cobra.Command{
 	Use:   "dump",
-	Short: "dump endpoint status",
+	Short: "Dump endpoint status",
 	Long:  `Dump endpoint status`,
 
 	Args: cobra.ExactArgs(1),
