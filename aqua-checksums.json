@@ -1,6 +1,31 @@
 {
   "checksums": [
     {
+      "id": "github_release/github.com/anchore/syft/v1.44.0/syft_1.44.0_darwin_amd64.tar.gz",
+      "checksum": "C40ECE5407927327F94F35901727DBC604B46857E04F04EC94A310845FB71BDE",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/anchore/syft/v1.44.0/syft_1.44.0_darwin_arm64.tar.gz",
+      "checksum": "24E4D34078AE81DA7C82539616F0CCAC3E226CF4F74A38CE6FB3463619E50A55",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/anchore/syft/v1.44.0/syft_1.44.0_linux_amd64.tar.gz",
+      "checksum": "0E91737AEE2B5BAF1D255B959630194A302335D848FF97BB07921EB6205B5F5A",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/anchore/syft/v1.44.0/syft_1.44.0_linux_arm64.tar.gz",
+      "checksum": "6F6CDCDC695721D91CE756E3B5BC3E3416599C464101F5E32E9C3F33054EE6D9",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/anchore/syft/v1.44.0/syft_1.44.0_windows_amd64.zip",
+      "checksum": "195E786EB84EC145854F20528992E86637C77D1968731DFE6CE850C90E28F47A",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/jqlang/jq/jq-1.8.1/jq-linux-amd64",
       "checksum": "020468DE7539CE70EF1BCEAF7CDE2E8C4F2CA6C3AFB84642AABC5C97D9FC2A0D",
       "algorithm": "sha256"

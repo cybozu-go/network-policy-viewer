@@ -24,7 +24,8 @@ setup: $(CUSTOMCHECKER) $(STATICCHECK) ## Install necessary tools
 		echo 'setup needs aqua.'; \
 		exit 1; \
 	fi
-	aqua install -l
+	aqua install
+	cp $$(aqua which syft) $(TOOLS_DIR)
 
 .PHONY: download-cilium-cli
 download-cilium-cli:

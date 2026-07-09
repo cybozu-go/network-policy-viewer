@@ -8,10 +8,11 @@ registries:
 - type: standard
   ref: v4.482.0 # renovate: depName=aquaproj/aqua-registry
 packages:
+- name: anchore/syft@v1.44.0
+- name: golang/tools/goimports@v0.43.0
 - name: helm/helm@v4.1.3
 - name: jqlang/jq@jq-1.8.1
 - name: kubernetes/kubectl@v1.35.2
 - name: kubernetes-sigs/kind@v0.31.0
 - name: kubernetes-sigs/kustomize@kustomize/v5.8.1
 - name: mikefarah/yq@v4.52.4
-- name: golang/tools/goimports@v0.43.0
