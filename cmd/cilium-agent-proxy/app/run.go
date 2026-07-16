@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/cybozu-go/network-policy-viewer/pkg/server"
 )
 
 const socketPath = "/var/run/cilium/cilium.sock"
@@ -156,6 +160,11 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func subMain() error {
+	useTLS := rootOptions.tlsCertFile != ""
+	if (rootOptions.tlsCertFile == "") != (rootOptions.tlsPrivateKeyFile == "") {
+		return fmt.Errorf("--tls-cert-file and --tls-private-key-file must be specified together")
+	}
+
 	socketClient = &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -164,9 +173,20 @@ func subMain() error {
 		},
 	}
 
+	port := server.DefaultHTTPPort
+	tlsMode := "disabled"
+	if useTLS {
+		port = server.DefaultHTTPSPort
+		tlsMode = "enabled"
+	}
+	addr := fmt.Sprintf(":%d", port)
+
 	server := http.Server{
-		Addr:    ":8080",
+		Addr:    addr,
 		Handler: nil,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
 	}
 
 	http.HandleFunc("/v1/endpoint/", handleEndpoint)
@@ -174,5 +194,9 @@ func subMain() error {
 	http.HandleFunc("/policy/", handlePolicy)
 	http.HandleFunc("/version", handleVersion)
 
+	slog.Info(fmt.Sprintf("starting cilium-agent-proxy with TLS %s on %s", tlsMode, addr))
+	if useTLS {
+		return server.ListenAndServeTLS(rootOptions.tlsCertFile, rootOptions.tlsPrivateKeyFile)
+	}
 	return server.ListenAndServe()
 }

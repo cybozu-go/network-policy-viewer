@@ -50,7 +50,11 @@ func jqSafe(g Gomega, input []byte, args ...string) []byte {
 }
 
 func runViewer(input []byte, args ...string) ([]byte, []byte, error) {
-	args = append([]string{"exec", "deploy/ubuntu", "--", policyViewerPath}, args...)
+	args = append([]string{
+		"exec", "deploy/ubuntu", "--", policyViewerPath,
+		"--proxy-tls", "--proxy-tls-ca-file=/etc/cluster-ca/ca.crt",
+		"--proxy-tls-server-name=cilium-agent-proxy",
+	}, args...)
 	return kubectl(input, args...)
 }
 

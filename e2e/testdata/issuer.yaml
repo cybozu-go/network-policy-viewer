@@ -1,0 +1,44 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cluster-selfsign
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cluster-ca
+spec:
+  ca:
+    secretName: cluster-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cluster-ca
+  namespace: cert-manager
+spec:
+  secretName: cluster-ca
+
+  # Replace this with the Issuer/ClusterIssuer used in your environment.
+  issuerRef:
+    name: cluster-selfsign
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+  isCA: true
+  commonName: cluster-ca
+
+  usages:
+    - digital signature
+    - cert sign
+    - crl sign
+
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never
+
+  duration: 87600h # 10y
+  renewBefore: 4320h # 180d

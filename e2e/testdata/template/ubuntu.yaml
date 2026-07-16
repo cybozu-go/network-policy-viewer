@@ -20,4 +20,4 @@ spec:
         - name: ubuntu
           args:
             - pause
-          image: ghcr.io/cybozu/ubuntu-debug:24.04
+          image: ghcr.io/cybozu/ubuntu-debug:24.04.20260714@sha256:9d1abca0fe66ed45a3b3e2d22be8d44859081c2fa557175e6d17f48c349054b3

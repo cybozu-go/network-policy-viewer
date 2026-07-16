@@ -17,4 +17,4 @@ spec:
         runAsGroup: 1000
       containers:
         - name: testhttpd
-          image: ghcr.io/cybozu/testhttpd:0
+          image: ghcr.io/cybozu/testhttpd:0.3.5@sha256:4f82e9e4ad83aba23d4adfb520e322543ff01f6ba83d9d2e86fa4f8d0f32d3e5

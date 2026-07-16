@@ -3,7 +3,7 @@ TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
-CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:4c04874591b4a9dd485c63e1a3baba5c18d84fa48bad3a46e9cc0b3823c6bf00 # 1.17.12.2
+CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:b616ed14f6d6a581307cd6cc8d288c93b0911cf01b2a7d960c9115e3b0a65fdc # 1.17.12.3
 CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
 CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
@@ -34,7 +34,7 @@ download-cilium-cli:
 	docker stop $${CONTAINER_ID}
 
 $(CUSTOMCHECKER):
-	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@5cda2f85e31dbe2453825f6520710a76465f197e # v0.1.5
+	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@e36a5f406803d81798b54abdd1585f98848d7cd8 # v0.1.6
 
 .PHONY: staticcheck
 staticcheck: $(STATICCHECK)

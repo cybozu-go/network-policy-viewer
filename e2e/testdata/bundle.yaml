@@ -1,0 +1,15 @@
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: cluster-ca
+spec:
+  sources:
+    - secret:
+        key: ca.crt
+        name: cluster-ca
+  target:
+    configMap:
+      key: ca.crt
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: default
