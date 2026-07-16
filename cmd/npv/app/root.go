@@ -53,7 +53,7 @@ func fillRootOptions() error {
 	rootOptions.units = viper.GetBool(flagUnits)
 	rootOptions.jobs = viper.GetInt(flagJobs)
 
-	proxy.SetConfig(&proxy.Config{
+	return proxy.SetConfig(&proxy.Config{
 		Namespace:             viper.GetString(flagProxyNamespace),
 		Selector:              viper.GetString(flagProxySelector),
 		Port:                  viper.GetUint16(flagProxyPort),
@@ -62,7 +62,6 @@ func fillRootOptions() error {
 		TLSServerName:         viper.GetString(flagProxyTLSServerName),
 		TLSInsecureSkipVerify: viper.GetBool(flagProxyTLSInsecureSkipVerify),
 	})
-	return nil
 }
 
 func fillGroupOptions(cmd *cobra.Command) error {

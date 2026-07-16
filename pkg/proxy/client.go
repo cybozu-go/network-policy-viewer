@@ -90,8 +90,18 @@ func init() {
 	config = &Config{}
 }
 
-func SetConfig(c *Config) {
+func SetConfig(c *Config) error {
+	if c.TLS {
+		if c.TLSServerName == "" {
+			return errors.New("--proxy-tls-server-name must be specified with --proxy-tls")
+		}
+	} else {
+		if c.TLSCAFile != "" || c.TLSServerName != "" || c.TLSInsecureSkipVerify {
+			return errors.New("proxy TLS options require --proxy-tls")
+		}
+	}
 	config = c
+	return nil
 }
 
 func getPodNodeName(ctx context.Context, c k8sclient.Client, namespace, name string) (string, error) {
@@ -177,9 +187,6 @@ func fetchCIDRGroupsLocked(ctx context.Context, c k8sclient.Client) error {
 
 func newHTTPClient() (*http.Client, error) {
 	if !config.TLS {
-		if config.TLSCAFile != "" || config.TLSServerName != "" || config.TLSInsecureSkipVerify {
-			return nil, errors.New("proxy TLS options require --proxy-tls")
-		}
 		return http.DefaultClient, nil
 	}
 
