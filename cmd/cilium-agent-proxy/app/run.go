@@ -20,9 +20,7 @@ import (
 
 const socketPath = "/var/run/cilium/cilium.sock"
 
-var (
-	socketClient *http.Client
-)
+var socketClient *http.Client
 
 func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 	param := r.URL.Path[len("/v1/endpoint/"):]

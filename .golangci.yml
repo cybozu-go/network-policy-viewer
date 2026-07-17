@@ -19,11 +19,9 @@ linters:
               desc: log must not be used
 formatters:
   enable:
-    - gofmt
+    - gofumpt
     - goimports
   settings:
-    gofmt:
-      simplify: true
     goimports:
       local-prefixes:
         - github.com/cybozu-go/network-policy-viewer

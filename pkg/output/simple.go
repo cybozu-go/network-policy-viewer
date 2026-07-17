@@ -20,9 +20,7 @@ type Config struct {
 	NoHeaders bool
 }
 
-var (
-	config *Config
-)
+var config *Config
 
 func GetConfig() *Config {
 	return config
