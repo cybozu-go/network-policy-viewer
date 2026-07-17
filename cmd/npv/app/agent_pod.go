@@ -56,6 +56,6 @@ func runAgentPod(ctx context.Context, w io.Writer, name string) error {
 		return fmt.Errorf("failed to find cilium-agent. found %d pods", num)
 	}
 
-	fmt.Fprintln(w, pods.Items[0].Name)
-	return nil
+	_, err = fmt.Fprintln(w, pods.Items[0].Name)
+	return err
 }

@@ -138,7 +138,7 @@ func testNormalizeArray() {
 			output := arr.CIDRs()
 
 			Expect(output).To(HaveLen(len(c.Expected)))
-			for i := 0; i < len(output); i++ {
+			for i := range len(output) {
 				Expect(output[i].String()).To(Equal(c.Expected[i]))
 			}
 		}
@@ -192,7 +192,7 @@ func testIntersectArray() {
 			output := arr.CIDRs()
 
 			Expect(output).To(HaveLen(len(c.Expected)))
-			for i := 0; i < len(output); i++ {
+			for i := range len(output) {
 				Expect(output[i].String()).To(Equal(c.Expected[i]))
 			}
 		}

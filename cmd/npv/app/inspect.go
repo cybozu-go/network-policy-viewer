@@ -249,7 +249,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		func(pod *corev1.Pod) []inspectEntry {
 			result, err := runInspectOnPod(ctx, stderr, c, filter, pod)
 			if err != nil {
-				fmt.Fprintf(stderr, "Warning: %v\n", err)
+				_, _ = fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return result
@@ -276,8 +276,8 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		var example any
 		example = p.Example
 		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
-			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
-			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
+			p.Example = strings.ReplaceAll(p.Example, "+", ",    +")
+			p.Example = strings.ReplaceAll(p.Example, "-", ",    -")
 			if strings.Contains(p.Example, ",") {
 				example = strings.Split(p.Example, ",")
 			}

@@ -71,3 +71,4 @@ lint: ## Run lint tools
 	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
 	$(STATICCHECK) ./...
 	test -z "$$($(CUSTOMCHECKER) -restrictpkg.packages=html/template,log ./... 2>&1 | tee /dev/stderr)"
+	golangci-lint run

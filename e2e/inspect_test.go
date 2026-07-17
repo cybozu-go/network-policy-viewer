@@ -18,7 +18,7 @@ func formatTrafficResult(result []byte, amount bool) string {
 	} else {
 		result = jqSafe(Default, result, "-r", `.[] | [.direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
 	}
-	return strings.Replace(string(result), `"`, "", -1)
+	return strings.ReplaceAll(string(result), `"`, "")
 }
 
 func readTraffic(result string) map[string]int {
@@ -396,7 +396,7 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 			result := runViewerSafe(Default, nil, args...)
 			result = fixJsonPodField(Default, result, "example_endpoint")
 			result = jqSafe(Default, result, "-r", `.[] | [.policy, .direction, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
-			resultString := strings.Replace(string(result), `"`, "", -1)
+			resultString := strings.ReplaceAll(string(result), `"`, "")
 			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nargs: %v\nactual: %s\nexpected: %s", c.Selector, c.ExtraArgs, resultString, c.Expected)
 		}
 	})

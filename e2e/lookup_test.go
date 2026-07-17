@@ -114,7 +114,7 @@ l4-ingress-all-allow-tcp,CiliumNetworkPolicy,test-l4,l4-ingress-all-allow-tcp`,
 			result := runViewerSafe(Default, nil, args...)
 			result = fixJsonPodField(Default, result, "subject")
 			result = jqSafe(Default, result, "-r", ".[] | [.subject, .kind, .namespace, .name] | @csv")
-			resultString := strings.Replace(string(result), `"`, "", -1)
+			resultString := strings.ReplaceAll(string(result), `"`, "")
 			Expect(resultString).To(Equal(c.Expected), "compare failed. actual: %s\nexpected: %s", resultString, c.Expected)
 		}
 	})

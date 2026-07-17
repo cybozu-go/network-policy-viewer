@@ -10,9 +10,9 @@ import (
 func testAgentNode() {
 	It("should show agent for nodes", func() {
 		data := kubectlSafe(Default, nil, "get", "node", "-o=jsonpath={.items[*].metadata.name}")
-		nodes := strings.Fields(string(data))
+		pods := strings.FieldsSeq(string(data))
 
-		for _, node := range nodes {
+		for node := range pods {
 			expected := string(kubectlSafe(Default, nil, "get", "pod", "-n=kube-system", "-l=k8s-app=cilium", "--field-selector=spec.nodeName="+node, "-o=jsonpath={.items[*].metadata.name}"))
 			expected = strings.TrimSpace(expected)
 			actual := string(runViewerSafe(Default, nil, "agent", "node", node))
@@ -25,9 +25,9 @@ func testAgentNode() {
 func testAgentPod() {
 	It("should show agent for pods", func() {
 		data := kubectlSafe(Default, nil, "get", "pod", "-n=test", "-o=jsonpath={.items[*].metadata.name}")
-		pods := strings.Fields(string(data))
+		pods := strings.FieldsSeq(string(data))
 
-		for _, pod := range pods {
+		for pod := range pods {
 			node := string(kubectlSafe(Default, nil, "get", "pod", "-n=test", pod, "-o=jsonpath={.spec.nodeName}"))
 			node = strings.TrimSpace(node)
 

@@ -132,7 +132,7 @@ Egress,CiliumNetworkPolicy,test,l4-self`,
 			args = append(args, c.ExtraArgs...)
 			result := runViewerSafe(Default, nil, args...)
 			result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
-			resultString := strings.Replace(string(result), `"`, "", -1)
+			resultString := strings.ReplaceAll(string(result), `"`, "")
 			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
 		}
 	})
@@ -153,7 +153,7 @@ l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-expl
 		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test-l3", "-l=test in (l3-ingress-explicit-allow-all,l3-ingress-explicit-deny-all)")
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
-		resultString := strings.Replace(string(result), `"`, "", -1)
+		resultString := strings.ReplaceAll(string(result), `"`, "")
 		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 
@@ -165,7 +165,7 @@ test,Egress,CiliumNetworkPolicy,test,l4-self`
 		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "--egress", "-g=ns")
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
-		resultString := strings.Replace(string(result), `"`, "", -1)
+		resultString := strings.ReplaceAll(string(result), `"`, "")
 		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 
@@ -177,7 +177,7 @@ test,Egress,CiliumNetworkPolicy,test,l4-self`
 		result := runViewerSafe(Default, nil, "list", "-o=json", "-n=test", "--egress", "-g=all")
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
-		resultString := strings.Replace(string(result), `"`, "", -1)
+		resultString := strings.ReplaceAll(string(result), `"`, "")
 		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 }
