@@ -151,7 +151,7 @@ To,test-l3,l3-ingress-explicit-allow-all`
 		result := runViewerSafe(Default, nil, "manifest", "range", from, to, "-o=json")
 		result = fixJsonPodField(Default, result, "name")
 		result = jqSafe(Default, result, "-r", `.[] | [.part, .namespace, .name] | @csv`)
-		resultString := strings.Replace(string(result), `"`, "", -1)
+		resultString := strings.ReplaceAll(string(result), `"`, "")
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)
 	})
 }

@@ -20,9 +20,7 @@ import (
 
 const socketPath = "/var/run/cilium/cilium.sock"
 
-var (
-	socketClient *http.Client
-)
+var socketClient *http.Client
 
 func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 	param := r.URL.Path[len("/v1/endpoint/"):]
@@ -44,10 +42,15 @@ func handleEndpoint(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	buf := new(bytes.Buffer)
-	io.Copy(buf, resp.Body)
+	if _, err := io.Copy(buf, resp.Body); err != nil {
+		renderError(w, r.URL.Path, "failed to write response", http.StatusInternalServerError)
+		return
+	}
 	renderJSON(w, r.URL.Path, buf.Bytes(), http.StatusOK)
 }
 
@@ -58,7 +61,9 @@ func handleCIDRIdentities(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r.URL.Path, "failed to call Cilium API", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// https://github.com/cilium/cilium/blob/main/api/v1/models/identity.go
 	type Identity struct {
@@ -132,7 +137,7 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 		Msg string `json:"msg,omitempty"`
 	}
 	type status struct {
-		Cilium statusCilium `json:"cilium,omitempty"`
+		Cilium statusCilium `json:"cilium"`
 	}
 
 	var s status
@@ -143,7 +148,10 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to number to avoid exposing unexpected content
 	var major, minor, revision int
-	fmt.Sscanf(s.Cilium.Msg, "%d.%d.%d", &major, &minor, &revision)
+	if _, err := fmt.Sscanf(s.Cilium.Msg, "%d.%d.%d", &major, &minor, &revision); err != nil {
+		renderError(w, r.URL.Path, "failed to parse version", http.StatusInternalServerError)
+		return
+	}
 
 	// Do not expose excessive info to client
 	var result struct {

@@ -62,8 +62,7 @@ func ParseCIDRExpression(expr string) (*Set, error) {
 		return nil, nil
 	}
 
-	fields := strings.Split(expr, ",")
-	for _, f := range fields {
+	for f := range strings.SplitSeq(expr, ",") {
 		not := false
 		if f[0] == '!' {
 			not = true

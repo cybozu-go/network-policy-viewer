@@ -23,8 +23,7 @@ func mapNodeReduce[T any](pods []*corev1.Pod, initFunc func() T, mapFunc func(*c
 	pick := func() (*corev1.Pod, bool) {
 		mu.Lock()
 		defer mu.Unlock()
-		for i := len(pods) - 1; i >= 0; i-- {
-			p := pods[i]
+		for i, p := range slices.Backward(pods) {
 			if !nodes[p.Spec.NodeName] {
 				nodes[p.Spec.NodeName] = true
 				pods = slices.Delete(pods, i, i+1)
@@ -44,7 +43,7 @@ func mapNodeReduce[T any](pods []*corev1.Pod, initFunc func() T, mapFunc func(*c
 
 	var wg sync.WaitGroup
 	values := make([]T, numJobs)
-	for i := 0; i < numJobs; i++ {
+	for i := range numJobs {
 		wg.Go(func() {
 			values[i] = initFunc()
 			for {

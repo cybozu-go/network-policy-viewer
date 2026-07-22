@@ -186,7 +186,9 @@ func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[uint32][]*ci
 	case 1:
 		fmt.Println(prefix + colored(KeyColor, key) + ": " + colored(ValueColor, labelMap[key][0]))
 		cleanup(entries, key)
-		walkIdTree(w, entries, idEndpoints, prefix)
+		if err := walkIdTree(w, entries, idEndpoints, prefix); err != nil {
+			return err
+		}
 	default:
 		fmt.Println(prefix + colored(KeyColor, key))
 		values := labelMap[key]
@@ -206,11 +208,15 @@ func walkIdTree(w io.Writer, entries []idTreeEntry, idEndpoints map[uint32][]*ci
 			if !isLast {
 				fmt.Println(prefix + "├── " + colored(ValueColor, v))
 				cleanup(children, key)
-				walkIdTree(w, children, idEndpoints, prefix+"│   ")
+				if err := walkIdTree(w, children, idEndpoints, prefix+"│   "); err != nil {
+					return err
+				}
 			} else {
 				fmt.Println(prefix + "└── " + colored(ValueColor, v))
 				cleanup(children, key)
-				walkIdTree(w, children, idEndpoints, prefix+"    ")
+				if err := walkIdTree(w, children, idEndpoints, prefix+"    "); err != nil {
+					return err
+				}
 			}
 		}
 	}

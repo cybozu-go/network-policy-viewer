@@ -21,8 +21,12 @@ var manifestRangeOptions struct {
 func init() {
 	manifestRangeCmd.Flags().StringVar(&manifestRangeOptions.from, "from", "", "egress pod")
 	manifestRangeCmd.Flags().StringVar(&manifestRangeOptions.to, "to", "", "ingress pod")
-	manifestRangeCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
-	manifestRangeCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
+	if err := manifestRangeCmd.RegisterFlagCompletionFunc("from", completeNamespacePods); err != nil {
+		panic(err)
+	}
+	if err := manifestRangeCmd.RegisterFlagCompletionFunc("to", completeNamespacePods); err != nil {
+		panic(err)
+	}
 	manifestCmd.AddCommand(manifestRangeCmd)
 }
 

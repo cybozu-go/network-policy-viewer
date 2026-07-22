@@ -49,7 +49,11 @@ func runDump(ctx context.Context, stdout, stderr io.Writer, name string) error {
 	}
 
 	var buf bytes.Buffer
-	json.Indent(&buf, data, "", "  ")
-	buf.WriteTo(stdout)
+	if err := json.Indent(&buf, data, "", "  "); err != nil {
+		return err
+	}
+	if _, err := buf.WriteTo(stdout); err != nil {
+		return err
+	}
 	return nil
 }

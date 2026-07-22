@@ -20,9 +20,7 @@ type Config struct {
 	NoHeaders bool
 }
 
-var (
-	config *Config
-)
+var config *Config
 
 func GetConfig() *Config {
 	return config
@@ -135,7 +133,7 @@ func WriteSimpleOrJson(w io.Writer, content any, header []string, count int, val
 		}
 		for i := range len(expr) {
 			format := strings.Repeat("%v\t", len(header)-1) + "%v\n"
-			if _, err := tw.Write([]byte(fmt.Sprintf(format, expr[i]...))); err != nil {
+			if _, err := fmt.Fprintf(tw, format, expr[i]...); err != nil {
 				return err
 			}
 		}

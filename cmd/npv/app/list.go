@@ -153,7 +153,7 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		func(pod *corev1.Pod) []listEntry {
 			policy, err := runListOnPod(ctx, stderr, c, pod)
 			if err != nil {
-				fmt.Fprintf(stderr, "Warning: %v\n", err)
+				_, _ = fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return policy

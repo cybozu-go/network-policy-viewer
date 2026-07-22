@@ -204,7 +204,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolP(flagUnits, "u", false, "use human-readable units (power of 1024) for traffic volume")
 	rootCmd.PersistentFlags().IntP(flagJobs, "j", 4, "number of parallel queries")
 
-	viper.BindPFlags(rootCmd.PersistentFlags())
+	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
+		panic(err)
+	}
 	viper.SetEnvPrefix("npv")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
@@ -220,7 +222,9 @@ func addGroupOption(cmd *cobra.Command) {
 // addNamespaceOption adds a flag for selecting a single namespace.
 func addNamespaceOption(cmd *cobra.Command) {
 	cmd.Flags().StringP(flagNamespace, "n", "", "namespace to select pods from")
-	cmd.RegisterFlagCompletionFunc(flagNamespace, completeNamespaces)
+	if err := cmd.RegisterFlagCompletionFunc(flagNamespace, completeNamespaces); err != nil {
+		panic(err)
+	}
 }
 
 // addNamespaceSelectorOption adds flags for selecting namespaces.
@@ -235,7 +239,9 @@ func addPodSelectorOption(cmd *cobra.Command) {
 	addNamespaceSelectorOption(cmd)
 	cmd.Flags().StringP(flagPodSelector, "l", "", "pod label selector")
 	cmd.Flags().String(flagNode, "", "node to filter pods by; implies -A (--all-namespaces)")
-	cmd.RegisterFlagCompletionFunc(flagNode, completeNodes)
+	if err := cmd.RegisterFlagCompletionFunc(flagNode, completeNodes); err != nil {
+		panic(err)
+	}
 }
 
 func addDirectionOption(cmd *cobra.Command) {

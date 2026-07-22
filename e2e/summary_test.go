@@ -29,7 +29,7 @@ l4-ingress-explicit-deny-udp,1,1,0,0`
 		result := runViewerSafe(Default, nil, "summary", "-o=json", "-N=group=test")
 		result = fixJsonPodField(Default, result, "name")
 		result = jqSafe(Default, result, "-r", `.[] | [.name, .ingress_allow, .ingress_deny, .egress_allow, .egress_deny] | @csv`)
-		resultString := strings.Replace(string(result), `"`, "", -1)
+		resultString := strings.ReplaceAll(string(result), `"`, "")
 		Expect(resultString).To(Equal(expected), "compare failed.\nactual: %s\nexpected: %s", resultString, expected)
 	})
 }

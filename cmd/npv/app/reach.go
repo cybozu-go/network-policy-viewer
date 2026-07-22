@@ -34,8 +34,12 @@ func init() {
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.privateCIDRs, "to-private-cidrs", false, "use private CIDRs as destination (10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)")
 	reachCmd.Flags().BoolVar(&reachOptions.toCIDR.publicCIDRs, "to-public-cidrs", false, "use public CIDRs as destination (0.0.0.0/0,!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16)")
 	reachCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
-	reachCmd.RegisterFlagCompletionFunc("from", completeNamespacePods)
-	reachCmd.RegisterFlagCompletionFunc("to", completeNamespacePods)
+	if err := reachCmd.RegisterFlagCompletionFunc("from", completeNamespacePods); err != nil {
+		panic(err)
+	}
+	if err := reachCmd.RegisterFlagCompletionFunc("to", completeNamespacePods); err != nil {
+		panic(err)
+	}
 	rootCmd.AddCommand(reachCmd)
 }
 
@@ -174,8 +178,8 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		var example any
 		example = p.Example
 		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
-			p.Example = strings.Replace(p.Example, "+", ",    +", -1)
-			p.Example = strings.Replace(p.Example, "-", ",    -", -1)
+			p.Example = strings.ReplaceAll(p.Example, "+", ",    +")
+			p.Example = strings.ReplaceAll(p.Example, "-", ",    -")
 			if strings.Contains(p.Example, ",") {
 				example = strings.Split(p.Example, ",")
 			}

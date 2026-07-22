@@ -13,7 +13,7 @@ func formatReachResult(result []byte) string {
 	// "npv reach" returns a unstable result, so we need to sort it in test
 	result = jqSafe(Default, result, "-r", `sort_by(.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port)`)
 	result = jqSafe(Default, result, "-r", `.[] | [.role, .direction, .policy, .example_endpoint, .wildcard_protocol, .wildcard_port, .protocol, .port] | @csv`)
-	return strings.Replace(string(result), `"`, "", -1)
+	return strings.ReplaceAll(string(result), `"`, "")
 }
 
 func testReach() {

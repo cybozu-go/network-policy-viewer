@@ -300,7 +300,9 @@ func (c *Client) queryProxy(ctx context.Context, path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -334,7 +336,9 @@ func (c *Client) testAgentVersion(ctx context.Context, stderr io.Writer) error {
 	agentVersion := semver.MajorMinor(result.Cilium)
 	moduleVersion := semver.MajorMinor(ciliumModuleVersion)
 	if agentVersion != moduleVersion {
-		fmt.Fprintf(stderr, "Warning: %s is running Cilium %s, but npv is built for %s. Result may be incorrect.\n", c.node, agentVersion, moduleVersion)
+		if _, err := fmt.Fprintf(stderr, "Warning: %s is running Cilium %s, but npv is built for %s. Result may be incorrect.\n", c.node, agentVersion, moduleVersion); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -5,9 +5,7 @@ CACHE_DIR := $(shell pwd)/cache
 # Test tools
 CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:b616ed14f6d6a581307cd6cc8d288c93b0911cf01b2a7d960c9115e3b0a65fdc # 1.17.12.3
 CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
-CUSTOMCHECKER := $(TOOLS_DIR)/custom-checker
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
-STATICCHECK := $(TOOLS_DIR)/staticcheck
 
 .PHONY: all
 all: help
@@ -33,15 +31,6 @@ download-cilium-cli:
 	docker cp $${CONTAINER_ID}:/usr/bin/cilium-dbg $(CILIUM_DBG_CLI); \
 	docker stop $${CONTAINER_ID}
 
-$(CUSTOMCHECKER):
-	GOBIN=$(TOOLS_DIR) go install github.com/cybozu-go/golang-custom-analyzer/cmd/custom-checker@e36a5f406803d81798b54abdd1585f98848d7cd8 # v0.1.6
-
-.PHONY: staticcheck
-staticcheck: $(STATICCHECK)
-
-$(STATICCHECK):
-	GOBIN=$(TOOLS_DIR) go install honnef.co/go/tools/cmd/staticcheck@ff63afafc529279f454e02f1d060210bd4263951 # v0.7.0
-
 .PHONY: clean
 clean:
 	rm -rf $(BIN_DIR)
@@ -62,12 +51,8 @@ build-proxy: ## Build cilium-agent-proxy
 .PHONY: check-generate
 check-generate:
 	go mod tidy
-	goimports -w -local github.com/cybozu-go/network-policy-viewer .
 	git diff --exit-code --name-only
 
 .PHONY: lint
 lint: ## Run lint tools
-	go vet ./...
-	test -z "$$(gofmt -s -l . | tee /dev/stderr)"
-	$(STATICCHECK) ./...
-	test -z "$$($(CUSTOMCHECKER) -restrictpkg.packages=html/template,log ./... 2>&1 | tee /dev/stderr)"
+	golangci-lint run
