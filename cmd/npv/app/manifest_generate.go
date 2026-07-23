@@ -169,8 +169,6 @@ func runManifestGenerate(ctx context.Context, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "%s", string(data)); err != nil {
-		return err
-	}
+	fmt.Fprintf(w, "%s", string(data))
 	return nil
 }

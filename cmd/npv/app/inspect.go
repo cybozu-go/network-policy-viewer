@@ -249,7 +249,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		func(pod *corev1.Pod) []inspectEntry {
 			result, err := runInspectOnPod(ctx, stderr, c, filter, pod)
 			if err != nil {
-				_, _ = fmt.Fprintf(stderr, "Warning: %v\n", err)
+				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return result
