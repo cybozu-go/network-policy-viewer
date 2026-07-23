@@ -52,9 +52,7 @@ func runSubject(ctx context.Context, stdout io.Writer, name string) error {
 	subjects = slices.Unique(subjects)
 
 	for _, s := range subjects {
-		if _, err := fmt.Fprintln(stdout, s); err != nil {
-			return err
-		}
+		fmt.Fprintln(stdout, s)
 	}
 	return nil
 }

@@ -26,9 +26,7 @@ func WriteManifests(w io.Writer, ccnps []*ciliumv2.CiliumClusterwideNetworkPolic
 	first := true
 	for _, ccnp := range ccnps {
 		if !first {
-			if _, err := fmt.Fprintln(w, "---"); err != nil {
-				return err
-			}
+			fmt.Fprintln(w, "---")
 		}
 		first = false
 
@@ -44,16 +42,12 @@ func WriteManifests(w io.Writer, ccnps []*ciliumv2.CiliumClusterwideNetworkPolic
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "%s", string(data)); err != nil {
-			return err
-		}
+		fmt.Fprintf(w, "%s", string(data))
 	}
 
 	for _, cnp := range cnps {
 		if !first {
-			if _, err := fmt.Fprintln(w, "---"); err != nil {
-				return err
-			}
+			fmt.Fprintln(w, "---")
 		}
 		first = false
 
@@ -69,9 +63,7 @@ func WriteManifests(w io.Writer, ccnps []*ciliumv2.CiliumClusterwideNetworkPolic
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "%s", string(data)); err != nil {
-			return err
-		}
+		fmt.Fprintf(w, "%s", string(data))
 	}
 	return nil
 }

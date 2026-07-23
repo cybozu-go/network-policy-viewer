@@ -103,7 +103,7 @@ func runSummary(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		func(pod *corev1.Pod) []summaryEntry {
 			entry, err := runSummaryOnPod(ctx, stderr, c, pod)
 			if err != nil {
-				_, _ = fmt.Fprintf(stderr, "Warning: %v\n", err)
+				fmt.Fprintf(stderr, "Warning: %v\n", err)
 				return nil
 			}
 			return []summaryEntry{*entry}
