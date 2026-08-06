@@ -29,8 +29,6 @@ var inspectOptions struct {
 }
 
 func init() {
-	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
@@ -38,6 +36,7 @@ func init() {
 	addPodSelectorOption(inspectCmd)
 	addWithCIDROptions(inspectCmd)
 	addDirectionOption(inspectCmd)
+	addAllowDenyOption(inspectCmd)
 	rootCmd.AddCommand(inspectCmd)
 }
 
@@ -117,10 +116,6 @@ func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
 }
 
 func parseInspectOptions() {
-	if !inspectOptions.allowed && !inspectOptions.denied {
-		inspectOptions.allowed = true
-		inspectOptions.denied = true
-	}
 	if !inspectOptions.used && !inspectOptions.unused {
 		inspectOptions.used = true
 		inspectOptions.unused = true
@@ -223,7 +218,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	parseInspectOptions()
 	basicFilter := proxy.MakeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
-		inspectOptions.allowed, inspectOptions.denied,
+		policyOptions.allowed, policyOptions.denied,
 		inspectOptions.used, inspectOptions.unused,
 	)
 	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)

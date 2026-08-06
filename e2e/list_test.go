@@ -122,6 +122,32 @@ Ingress,CiliumNetworkPolicy,test,l4-self`,
 Egress,CiliumNetworkPolicy,test,l3-self
 Egress,CiliumNetworkPolicy,test,l4-self`,
 		},
+		// npv list should handle --allowed and --denied
+		{
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-allow-all",
+			ExtraArgs: []string{"--ingress", "--allowed"},
+			Expected:  `Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-allow-all`,
+		},
+		{
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-allow-all",
+			ExtraArgs: []string{"--ingress", "--denied"},
+			Expected:  `Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline`,
+		},
+		{
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-deny-all",
+			ExtraArgs: []string{"--ingress", "--allowed"},
+			Expected:  ``,
+		},
+		{
+			Namespace: "test-l3",
+			Selector:  "test=l3-ingress-explicit-deny-all",
+			ExtraArgs: []string{"--ingress", "--denied"},
+			Expected: `Ingress,CiliumClusterwideNetworkPolicy,-,l3-baseline
+Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-explicit-deny-all`,
+		},
 	}
 
 	It("should list applied policies", func() {

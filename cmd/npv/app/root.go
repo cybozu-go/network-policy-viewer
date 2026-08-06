@@ -168,12 +168,18 @@ var commonOptions struct {
 var policyOptions struct {
 	ingress bool
 	egress  bool
+	allowed bool
+	denied  bool
 }
 
 func fillPolicyOptions() {
 	if !policyOptions.ingress && !policyOptions.egress {
 		policyOptions.ingress = true
 		policyOptions.egress = true
+	}
+	if !policyOptions.allowed && !policyOptions.denied {
+		policyOptions.allowed = true
+		policyOptions.denied = true
 	}
 }
 
@@ -247,6 +253,11 @@ func addPodSelectorOption(cmd *cobra.Command) {
 func addDirectionOption(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&policyOptions.ingress, "ingress", false, "show ingress-rules only")
 	cmd.Flags().BoolVar(&policyOptions.egress, "egress", false, "show egress-rules only")
+}
+
+func addAllowDenyOption(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&policyOptions.allowed, "allowed", false, "show allow-rules only")
+	cmd.Flags().BoolVar(&policyOptions.denied, "denied", false, "show deny-rules only")
 }
 
 func addWithCIDROptions(cmd *cobra.Command) {

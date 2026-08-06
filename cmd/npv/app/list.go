@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,6 +27,7 @@ func init() {
 	addGroupOption(listCmd)
 	addPodSelectorOption(listCmd)
 	addDirectionOption(listCmd)
+	addAllowDenyOption(listCmd)
 	addManifestOption(listCmd)
 	rootCmd.AddCommand(listCmd)
 }
@@ -97,6 +99,14 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
+func hasAllowRule(rule *api.Rule) bool {
+	return len(rule.Ingress)+len(rule.Egress) > 0
+}
+
+func hasDenyRule(rule *api.Rule) bool {
+	return len(rule.IngressDeny)+len(rule.EgressDeny) > 0
+}
+
 func runListOnPod(ctx context.Context, stderr io.Writer, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
@@ -145,7 +155,6 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return err
 	}
 
-	// The same rule appears multiple times in the response, so we need to dedup it
 	arr := mapNodeReduce(pods,
 		func() []listEntry {
 			return make([]listEntry, 0)
@@ -163,25 +172,64 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		},
 	)
 
-	if commonOptions.manifests {
-		ccnps := make([]*ciliumv2.CiliumClusterwideNetworkPolicy, 0)
-		cnps := make([]*ciliumv2.CiliumNetworkPolicy, 0)
-		for _, p := range arr {
-			if p.Kind == gvk.ClusterwideNetworkPolicy.Kind {
-				var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
-				if err := c.Get(ctx, types.NamespacedName{Name: p.Name}, &ccnp); err != nil {
-					return err
-				}
-				ccnps = append(ccnps, &ccnp)
-			} else {
-				var cnp ciliumv2.CiliumNetworkPolicy
-				if err := c.Get(ctx, types.NamespacedName{Namespace: p.Namespace, Name: p.Name}, &cnp); err != nil {
-					return err
-				}
-				cnps = append(cnps, &cnp)
+	ccnps := make(map[types.NamespacedName]*ciliumv2.CiliumClusterwideNetworkPolicy)
+	cnps := make(map[types.NamespacedName]*ciliumv2.CiliumNetworkPolicy)
+	for _, l := range arr {
+		if l.Kind == gvk.ClusterwideNetworkPolicy.Kind {
+			var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Name: l.Name}, &ccnp); err != nil {
+				return err
 			}
+
+			allowMatch := policyOptions.allowed && (hasAllowRule(ccnp.Spec) || slices.ContainsFunc(ccnp.Specs, hasAllowRule))
+			denyMatch := policyOptions.denied && (hasDenyRule(ccnp.Spec) || slices.ContainsFunc(ccnp.Specs, hasDenyRule))
+			if !allowMatch && !denyMatch {
+				continue
+			}
+
+			ccnps[types.NamespacedName{Name: ccnp.Name}] = &ccnp
+		} else {
+			var cnp ciliumv2.CiliumNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Namespace: l.Namespace, Name: l.Name}, &cnp); err != nil {
+				return err
+			}
+
+			allowMatch := policyOptions.allowed && (hasAllowRule(cnp.Spec) || slices.ContainsFunc(cnp.Specs, hasAllowRule))
+			denyMatch := policyOptions.denied && (hasDenyRule(cnp.Spec) || slices.ContainsFunc(cnp.Specs, hasDenyRule))
+			if !allowMatch && !denyMatch {
+				continue
+			}
+
+			cnps[types.NamespacedName{Namespace: cnp.Namespace, Name: cnp.Name}] = &cnp
 		}
-		return output.WriteManifests(stdout, ccnps, cnps)
+	}
+
+	arr = slices.DeleteFunc(arr, func(l listEntry) bool {
+		switch l.Kind {
+		case gvk.ClusterwideNetworkPolicy.Kind:
+			_, ok := ccnps[types.NamespacedName{Name: l.Name}]
+			return !ok
+		default:
+			_, ok := cnps[types.NamespacedName{Namespace: l.Namespace, Name: l.Name}]
+			return !ok
+		}
+	})
+
+	if commonOptions.manifests {
+		ccnpList := slices.Collect(maps.Values(ccnps))
+		cnpList := slices.Collect(maps.Values(cnps))
+
+		slices.SortFunc(ccnpList, func(x, y *ciliumv2.CiliumClusterwideNetworkPolicy) int {
+			return strings.Compare(x.Name, y.Name)
+		})
+		slices.SortFunc(cnpList, func(x, y *ciliumv2.CiliumNetworkPolicy) int {
+			ret := strings.Compare(x.Namespace, y.Namespace)
+			if ret == 0 {
+				ret = strings.Compare(x.Name, y.Name)
+			}
+			return ret
+		})
+		return output.WriteManifests(stdout, ccnpList, cnpList)
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
