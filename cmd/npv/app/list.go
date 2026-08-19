@@ -99,12 +99,29 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
-func hasAllowRule(rule *api.Rule) bool {
-	return len(rule.Ingress)+len(rule.Egress) > 0
+func hasMatchingRule(direction string, allowed bool, rule *api.Rule) bool {
+	if rule == nil {
+		return false
+	}
+
+	switch {
+	case direction == directionIngress && allowed:
+		return len(rule.Ingress) > 0
+	case direction == directionIngress && !allowed:
+		return len(rule.IngressDeny) > 0
+	case direction == directionEgress && allowed:
+		return len(rule.Egress) > 0
+	case direction == directionEgress && !allowed:
+		return len(rule.EgressDeny) > 0
+	default:
+		panic("internal error")
+	}
 }
 
-func hasDenyRule(rule *api.Rule) bool {
-	return len(rule.IngressDeny)+len(rule.EgressDeny) > 0
+func hasMatchingSpec(direction string, allowed bool, spec *api.Rule, specs api.Rules) bool {
+	return hasMatchingRule(direction, allowed, spec) || slices.ContainsFunc(specs, func(rule *api.Rule) bool {
+		return hasMatchingRule(direction, allowed, rule)
+	})
 }
 
 func runListOnPod(ctx context.Context, stderr io.Writer, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
@@ -181,26 +198,28 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 				return err
 			}
 
-			allowMatch := policyOptions.allowed && (hasAllowRule(ccnp.Spec) || slices.ContainsFunc(ccnp.Specs, hasAllowRule))
-			denyMatch := policyOptions.denied && (hasDenyRule(ccnp.Spec) || slices.ContainsFunc(ccnp.Specs, hasDenyRule))
-			if !allowMatch && !denyMatch {
-				continue
-			}
+			match1 := policyOptions.ingress && policyOptions.allowed && hasMatchingSpec(directionIngress, true, ccnp.Spec, ccnp.Specs)
+			match2 := policyOptions.ingress && policyOptions.denied && hasMatchingSpec(directionIngress, false, ccnp.Spec, ccnp.Specs)
+			match3 := policyOptions.egress && policyOptions.allowed && hasMatchingSpec(directionEgress, true, ccnp.Spec, ccnp.Specs)
+			match4 := policyOptions.egress && policyOptions.denied && hasMatchingSpec(directionEgress, false, ccnp.Spec, ccnp.Specs)
 
-			ccnps[types.NamespacedName{Name: ccnp.Name}] = &ccnp
+			if match1 || match2 || match3 || match4 {
+				ccnps[types.NamespacedName{Name: ccnp.Name}] = &ccnp
+			}
 		} else {
 			var cnp ciliumv2.CiliumNetworkPolicy
 			if err := c.Get(ctx, types.NamespacedName{Namespace: l.Namespace, Name: l.Name}, &cnp); err != nil {
 				return err
 			}
 
-			allowMatch := policyOptions.allowed && (hasAllowRule(cnp.Spec) || slices.ContainsFunc(cnp.Specs, hasAllowRule))
-			denyMatch := policyOptions.denied && (hasDenyRule(cnp.Spec) || slices.ContainsFunc(cnp.Specs, hasDenyRule))
-			if !allowMatch && !denyMatch {
-				continue
-			}
+			match1 := policyOptions.ingress && policyOptions.allowed && hasMatchingSpec(directionIngress, true, cnp.Spec, cnp.Specs)
+			match2 := policyOptions.ingress && policyOptions.denied && hasMatchingSpec(directionIngress, false, cnp.Spec, cnp.Specs)
+			match3 := policyOptions.egress && policyOptions.allowed && hasMatchingSpec(directionEgress, true, cnp.Spec, cnp.Specs)
+			match4 := policyOptions.egress && policyOptions.denied && hasMatchingSpec(directionEgress, false, cnp.Spec, cnp.Specs)
 
-			cnps[types.NamespacedName{Namespace: cnp.Namespace, Name: cnp.Name}] = &cnp
+			if match1 || match2 || match3 || match4 {
+				cnps[types.NamespacedName{Namespace: cnp.Namespace, Name: cnp.Name}] = &cnp
+			}
 		}
 	}
 

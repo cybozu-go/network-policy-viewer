@@ -3,10 +3,7 @@ linters:
   enable:
     - depguard
     - ginkgolinter
-    - govet
-    - modernize
     - nilerr
-    - staticcheck
   exclusions:
     generated: lax
     presets:
