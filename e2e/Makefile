@@ -104,6 +104,8 @@ install-test-pod:
 	kubectl apply -f testdata/policy/cidr-group.yaml
 	kubectl apply -f testdata/policy/l3.yaml
 	kubectl apply -f testdata/policy/l4.yaml
+	cat testdata/policy/l3.yaml | yq '.metadata.name = (.metadata.name + "-specs") | .specs = [.spec] | del(.spec)' | kubectl apply -f-
+	cat testdata/policy/l4.yaml | yq '.metadata.name = (.metadata.name + "-specs") | .specs = [.spec] | del(.spec)' | kubectl apply -f-
 
 .PHONY: install-policy-viewer
 install-policy-viewer:

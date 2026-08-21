@@ -92,3 +92,17 @@ func makeIntersection(x, y []string) []string {
 	}
 	return ret
 }
+
+func expectSpecs(input string) string {
+	if input == "" {
+		return ""
+	}
+
+	lines := strings.Split(input, "\n")
+	output := make([]string, 0, len(lines)*2)
+	for _, line := range lines {
+		line = strings.TrimSuffix(line, "\r")
+		output = append(output, line, line+"-specs")
+	}
+	return strings.Join(output, "\n")
+}

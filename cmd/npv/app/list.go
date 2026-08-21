@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,6 +27,7 @@ func init() {
 	addGroupOption(listCmd)
 	addPodSelectorOption(listCmd)
 	addDirectionOption(listCmd)
+	addAllowDenyOption(listCmd)
 	addManifestOption(listCmd)
 	rootCmd.AddCommand(listCmd)
 }
@@ -97,6 +99,31 @@ func parseListEntry(subject, direction string, input []string) listEntry {
 	return val
 }
 
+func hasMatchingRule(direction string, allowed bool, rule *api.Rule) bool {
+	if rule == nil {
+		return false
+	}
+
+	switch {
+	case direction == directionIngress && allowed:
+		return len(rule.Ingress) > 0
+	case direction == directionIngress && !allowed:
+		return len(rule.IngressDeny) > 0
+	case direction == directionEgress && allowed:
+		return len(rule.Egress) > 0
+	case direction == directionEgress && !allowed:
+		return len(rule.EgressDeny) > 0
+	default:
+		panic("internal error")
+	}
+}
+
+func hasMatchingSpec(direction string, allowed bool, spec *api.Rule, specs api.Rules) bool {
+	return hasMatchingRule(direction, allowed, spec) || slices.ContainsFunc(specs, func(rule *api.Rule) bool {
+		return hasMatchingRule(direction, allowed, rule)
+	})
+}
+
 func runListOnPod(ctx context.Context, stderr io.Writer, c client.Client, pod *corev1.Pod) ([]listEntry, error) {
 	policySet := make(map[listEntry]any)
 
@@ -145,7 +172,6 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		return err
 	}
 
-	// The same rule appears multiple times in the response, so we need to dedup it
 	arr := mapNodeReduce(pods,
 		func() []listEntry {
 			return make([]listEntry, 0)
@@ -163,25 +189,66 @@ func runList(ctx context.Context, stdout, stderr io.Writer, name string) error {
 		},
 	)
 
-	if commonOptions.manifests {
-		ccnps := make([]*ciliumv2.CiliumClusterwideNetworkPolicy, 0)
-		cnps := make([]*ciliumv2.CiliumNetworkPolicy, 0)
-		for _, p := range arr {
-			if p.Kind == gvk.ClusterwideNetworkPolicy.Kind {
-				var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
-				if err := c.Get(ctx, types.NamespacedName{Name: p.Name}, &ccnp); err != nil {
-					return err
-				}
-				ccnps = append(ccnps, &ccnp)
-			} else {
-				var cnp ciliumv2.CiliumNetworkPolicy
-				if err := c.Get(ctx, types.NamespacedName{Namespace: p.Namespace, Name: p.Name}, &cnp); err != nil {
-					return err
-				}
-				cnps = append(cnps, &cnp)
+	ccnps := make(map[types.NamespacedName]*ciliumv2.CiliumClusterwideNetworkPolicy)
+	cnps := make(map[types.NamespacedName]*ciliumv2.CiliumNetworkPolicy)
+	for _, l := range arr {
+		if l.Kind == gvk.ClusterwideNetworkPolicy.Kind {
+			var ccnp ciliumv2.CiliumClusterwideNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Name: l.Name}, &ccnp); err != nil {
+				return err
+			}
+
+			match1 := policyOptions.ingress && policyOptions.allowed && hasMatchingSpec(directionIngress, true, ccnp.Spec, ccnp.Specs)
+			match2 := policyOptions.ingress && policyOptions.denied && hasMatchingSpec(directionIngress, false, ccnp.Spec, ccnp.Specs)
+			match3 := policyOptions.egress && policyOptions.allowed && hasMatchingSpec(directionEgress, true, ccnp.Spec, ccnp.Specs)
+			match4 := policyOptions.egress && policyOptions.denied && hasMatchingSpec(directionEgress, false, ccnp.Spec, ccnp.Specs)
+
+			if match1 || match2 || match3 || match4 {
+				ccnps[types.NamespacedName{Name: ccnp.Name}] = &ccnp
+			}
+		} else {
+			var cnp ciliumv2.CiliumNetworkPolicy
+			if err := c.Get(ctx, types.NamespacedName{Namespace: l.Namespace, Name: l.Name}, &cnp); err != nil {
+				return err
+			}
+
+			match1 := policyOptions.ingress && policyOptions.allowed && hasMatchingSpec(directionIngress, true, cnp.Spec, cnp.Specs)
+			match2 := policyOptions.ingress && policyOptions.denied && hasMatchingSpec(directionIngress, false, cnp.Spec, cnp.Specs)
+			match3 := policyOptions.egress && policyOptions.allowed && hasMatchingSpec(directionEgress, true, cnp.Spec, cnp.Specs)
+			match4 := policyOptions.egress && policyOptions.denied && hasMatchingSpec(directionEgress, false, cnp.Spec, cnp.Specs)
+
+			if match1 || match2 || match3 || match4 {
+				cnps[types.NamespacedName{Namespace: cnp.Namespace, Name: cnp.Name}] = &cnp
 			}
 		}
-		return output.WriteManifests(stdout, ccnps, cnps)
+	}
+
+	arr = slices.DeleteFunc(arr, func(l listEntry) bool {
+		switch l.Kind {
+		case gvk.ClusterwideNetworkPolicy.Kind:
+			_, ok := ccnps[types.NamespacedName{Name: l.Name}]
+			return !ok
+		default:
+			_, ok := cnps[types.NamespacedName{Namespace: l.Namespace, Name: l.Name}]
+			return !ok
+		}
+	})
+
+	if commonOptions.manifests {
+		ccnpList := slices.Collect(maps.Values(ccnps))
+		cnpList := slices.Collect(maps.Values(cnps))
+
+		slices.SortFunc(ccnpList, func(x, y *ciliumv2.CiliumClusterwideNetworkPolicy) int {
+			return strings.Compare(x.Name, y.Name)
+		})
+		slices.SortFunc(cnpList, func(x, y *ciliumv2.CiliumNetworkPolicy) int {
+			ret := strings.Compare(x.Namespace, y.Namespace)
+			if ret == 0 {
+				ret = strings.Compare(x.Name, y.Name)
+			}
+			return ret
+		})
+		return output.WriteManifests(stdout, ccnpList, cnpList)
 	}
 
 	subHeader := []string{"SUBJECT", "|"}
