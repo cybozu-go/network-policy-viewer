@@ -56,3 +56,9 @@ check-generate:
 .PHONY: lint
 lint: ## Run lint tools
 	golangci-lint run
+
+.PHONY: lint-actions
+lint-actions:
+	pinact run --check --verify-comment --min-age 14
+	actionlint
+	zizmor .
