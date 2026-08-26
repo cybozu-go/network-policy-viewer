@@ -58,7 +58,7 @@ lint: ## Run lint tools
 	golangci-lint run
 
 .PHONY: lint-actions
-lint-actions:
+lint-actions: ## Run linters for GitHub Actions
 	pinact run --check --verify-comment --min-age 14
 	actionlint
 	zizmor --persona=regular .

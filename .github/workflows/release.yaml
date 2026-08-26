@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
+          fetch-depth: 0 # Fetch all tags to check whether the release tag already exists.
           persist-credentials: true
       - name: Validate inputs
         env:
@@ -50,6 +51,7 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
+          # Disable caching to prevent cache poisoning in the release workflow.
           cache: false
       - name: Build
         env:
