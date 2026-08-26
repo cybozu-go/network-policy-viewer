@@ -61,4 +61,4 @@ lint: ## Run lint tools
 lint-actions:
 	pinact run --check --verify-comment --min-age 14
 	actionlint
-	zizmor .
+	zizmor --persona=regular .

@@ -6,6 +6,9 @@ on:
         type: string
         required: true
         description: The name of the tag to release (X.Y.Z)
+permissions:
+  contents: write
+  packages: write
 jobs:
   release:
     name: Release network-policy-viewer
@@ -14,14 +17,17 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main
+          persist-credentials: true
       - name: Validate inputs
+        env:
+          VTAG: v${{ inputs.tag }}
         run: |
-          if [[ ! ${{ inputs.tag }} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "${VTAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid tag format. Please use X.Y.Z"
             exit 1
           fi
-          if git rev-parse v${{ inputs.tag }} >/dev/null 2>&1; then
-              echo "Tag v${{ inputs.tag }} already exists"
+          if git rev-parse "${VTAG}" >/dev/null 2>&1; then
+              echo "Tag ${VTAG} already exists"
               exit 1
           fi
       - name: Download Cilium CLI
@@ -44,21 +50,27 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Build
+        env:
+          VTAG: v${{ inputs.tag }}
         run: |
           make build
-          cd bin; tar -czvf npv_v${{ inputs.tag }}_amd64.tar.gz npv
+          cd bin; tar -czvf "npv_${VTAG}_amd64.tar.gz" npv
       - name: Setup Git Config
         run: |
           git config --global user.name github-actions
           git config --global user.email github-actions@github.com
       - name: Push tag
+        env:
+          VTAG: v${{ inputs.tag }}
         run: |
-          git tag -a v${{ inputs.tag }} -m "Release network-policy-viewer v${{ inputs.tag }}"
-          git push origin v${{ inputs.tag }}
+          git tag -a "${VTAG}" -m "Release network-policy-viewer ${VTAG}"
+          git push origin "${VTAG}"
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VTAG: v${{ inputs.tag }}
         run: |
-          gh release create v${{ inputs.tag }} --title "Release v${{ inputs.tag }}" --generate-notes
-          gh release upload v${{ inputs.tag }} bin/npv_v${{ inputs.tag }}_amd64.tar.gz --clobber
+          gh release create "${VTAG}" --title "Release ${VTAG}" --generate-notes
+          gh release upload "${VTAG}" "bin/npv_${VTAG}_amd64.tar.gz" --clobber
