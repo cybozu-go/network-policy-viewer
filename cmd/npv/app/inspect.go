@@ -259,6 +259,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		},
 	)
 
+	format := output.GetConfig().Format
 	subHeader := []string{"SUBJECT", "|"}
 	header := []string{"POLICY", "DIRECTION", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
 	if subject.ShouldPrintSubject(name) {
@@ -275,7 +276,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 		}
 		var example any
 		example = p.Example
-		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
+		if (format == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
 			p.Example = strings.ReplaceAll(p.Example, "+", ",    +")
 			p.Example = strings.ReplaceAll(p.Example, "-", ",    -")
 			if strings.Contains(p.Example, ",") {

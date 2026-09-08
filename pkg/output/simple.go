@@ -22,12 +22,29 @@ type Config struct {
 
 var config *Config
 
+func init() {
+	config = &Config{
+		Format: FormatSimple,
+	}
+}
+
 func GetConfig() *Config {
 	return config
 }
 
-func SetConfig(c *Config) {
-	config = c
+func SetConfig(c *Config) error {
+	if c == nil {
+		panic("config should not be nil")
+	}
+	switch c.Format {
+	case FormatJson:
+		fallthrough
+	case FormatSimple:
+		config = c
+		return nil
+	default:
+		return fmt.Errorf("unknown format: %s", c.Format)
+	}
 }
 
 // inflateRow expands a single row into multiple rows when some cells contain slices.
@@ -137,6 +154,6 @@ func WriteSimpleOrJson(w io.Writer, content any, header []string, count int, val
 		}
 		return tw.Flush()
 	default:
-		return fmt.Errorf("unknown format: %s", config.Format)
+		panic(fmt.Sprintf("unknown format: %s", config.Format))
 	}
 }
