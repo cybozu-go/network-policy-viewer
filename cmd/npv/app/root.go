@@ -37,10 +37,8 @@ const (
 )
 
 var rootOptions struct {
-	output    string
-	noHeaders bool
-	units     bool
-	jobs      int
+	units bool
+	jobs  int
 }
 
 func fillRootOptions() error {
@@ -48,7 +46,9 @@ func fillRootOptions() error {
 		Format:    viper.GetString(flagOutput),
 		NoHeaders: viper.GetBool(flagNoHeaders),
 	}
-	output.SetConfig(&oc)
+	if err := output.SetConfig(&oc); err != nil {
+		return err
+	}
 
 	rootOptions.units = viper.GetBool(flagUnits)
 	rootOptions.jobs = viper.GetInt(flagJobs)

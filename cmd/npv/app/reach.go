@@ -165,6 +165,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		}
 	}
 
+	format := output.GetConfig().Format
 	header := []string{"ROLE", "DIRECTION", "POLICY", "|", "IDENTITY", "NAMESPACE", "EXAMPLE-ENDPOINT", "|", "PROTOCOL", "PORT", "|", "BYTES:", "REQUESTS:", "AVERAGE:"}
 	return output.WriteSimpleOrJson(stdout, arr, header, len(arr), func(index int) []any {
 		p := arr[index]
@@ -177,7 +178,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 		}
 		var example any
 		example = p.Example
-		if (rootOptions.output == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
+		if (format == output.FormatSimple) && strings.HasPrefix(p.Example, "cidr:") {
 			p.Example = strings.ReplaceAll(p.Example, "+", ",    +")
 			p.Example = strings.ReplaceAll(p.Example, "-", ",    -")
 			if strings.Contains(p.Example, ",") {
