@@ -8,10 +8,12 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
@@ -36,6 +38,21 @@ var idTreeCmd = &cobra.Command{
 type idTreeEntry struct {
 	identity uint32
 	labels   map[string]string
+}
+
+// k8sSecurityLabelSet converts a CiliumIdentity's SecurityLabels into the
+// plain key=value form used by --pod-selector, mirroring how Cilium <1.18
+// used to mirror them onto the CiliumIdentity's own metadata.labels: only
+// "k8s:"-sourced labels are considered, and the "k8s:" prefix is stripped.
+func k8sSecurityLabelSet(securityLabels map[string]string) k8slabels.Set {
+	const k8sPrefix = "k8s:"
+	set := make(k8slabels.Set, len(securityLabels))
+	for k, v := range securityLabels {
+		if key, ok := strings.CutPrefix(k, k8sPrefix); ok {
+			set[key] = v
+		}
+	}
+	return set
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
@@ -64,8 +81,13 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
+	// CiliumIdentity's own metadata.labels no longer mirror arbitrary pod
+	// labels since Cilium 1.18 (only the namespace label is kept there), so
+	// podOptions.LabelSelector cannot be applied as a server-side List filter
+	// here. Instead, list every CiliumIdentity and match the selector against
+	// SecurityLabels (which still carries all of them) client-side.
 	var li ciliumv2.CiliumIdentityList
-	if err := c.List(ctx, &li, podOptions); err != nil {
+	if err := c.List(ctx, &li); err != nil {
 		return err
 	}
 
@@ -82,6 +104,9 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 			if _, ok := nsSet[ns]; !ok {
 				continue
 			}
+		}
+		if !podOptions.LabelSelector.Matches(k8sSecurityLabelSet(item.SecurityLabels)) {
+			continue
 		}
 		e.labels = item.SecurityLabels
 		items = append(items, e)

@@ -9,6 +9,7 @@ import (
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -165,7 +166,7 @@ func runLookup(ctx context.Context, stdout io.Writer, name string) error {
 
 ccnpLoop:
 	for _, ccnp := range ccnpList.Items {
-		rules, err := ccnp.Parse()
+		rules, err := ccnp.Parse(logging.DefaultSlogLogger, "")
 		if err != nil {
 			return err
 		}
@@ -200,7 +201,7 @@ ccnpLoop:
 
 cnpLoop:
 	for _, cnp := range cnpList.Items {
-		rules, err := cnp.Parse()
+		rules, err := cnp.Parse(logging.DefaultSlogLogger, "")
 		if err != nil {
 			return err
 		}

@@ -58,7 +58,7 @@ var inspectCmd = &cobra.Command{
 }
 
 // This command aims to show the result of "cilium bpf policy get" from a remote pod.
-// https://github.com/cilium/cilium/blob/v1.17.16/cilium-dbg/cmd/bpf_policy_get.go
+// https://github.com/cilium/cilium/blob/v1.18.6/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
 	Subject          string `json:"subject"`
 	Node             string `json:"node"`
@@ -71,8 +71,15 @@ type inspectEntry struct {
 	WildcardPort     bool   `json:"wildcard_port"`
 	Protocol         uint8  `json:"protocol"`
 	Port             uint16 `json:"port"`
-	Bytes            uint64 `json:"bytes"`
-	Requests         uint64 `json:"requests"`
+	// StatsAvailable reports whether Bytes/Requests reflect real counters.
+	// Since Cilium 1.18, statistics may be unavailable for some entries (see
+	// proxy.PolicyEntry.IsStatsAvailable); Bytes/Requests are left at 0 in
+	// that case, which is not the same as a confirmed zero-byte count: in
+	// practice, stats are unavailable precisely when a rule hasn't carried
+	// traffic yet.
+	StatsAvailable bool   `json:"stats_available"`
+	Bytes          uint64 `json:"bytes"`
+	Requests       uint64 `json:"requests"`
 }
 
 func compareInspectEntry(x, y *inspectEntry) int {
@@ -111,6 +118,7 @@ func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
 		}
 	}
 
+	x.StatsAvailable = x.StatsAvailable && y.StatsAvailable
 	x.Bytes += y.Bytes
 	x.Requests += y.Requests
 	return x
@@ -210,8 +218,11 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, c client.Client, fil
 		entry.WildcardPort = p.IsWildcardPort()
 		entry.Protocol = p.GetProtocol()
 		entry.Port = p.Key.GetDestPort()
-		entry.Bytes = p.Bytes
-		entry.Requests = p.Packets
+		entry.StatsAvailable = p.IsStatsAvailable()
+		if entry.StatsAvailable {
+			entry.Bytes = p.Bytes
+			entry.Requests = p.Packets
+		}
 		arr[i] = entry
 	}
 
@@ -283,8 +294,8 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 				example = strings.Split(p.Example, ",")
 			}
 		}
-		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		bytesStr, requestsStr, avg := formatStatsColumns(p)
+		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", bytesStr, requestsStr, avg}
 		if subject.ShouldPrintSubject(name) {
 			subValues := []any{p.Subject, "|"}
 			values = append(subValues, values...)
