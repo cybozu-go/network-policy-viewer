@@ -3,7 +3,7 @@ TOOLS_DIR := $(BIN_DIR)/download
 CACHE_DIR := $(shell pwd)/cache
 
 # Test tools
-CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:b616ed14f6d6a581307cd6cc8d288c93b0911cf01b2a7d960c9115e3b0a65fdc # 1.17.12.3
+CYBOZU_CILIUM_IMAGE := ghcr.io/cybozu/cilium@sha256:adc60b773d57624bd611fbca49e2e56feca975eac2bfd788741db69b162fa62c # 1.18.6.1
 CILIUM_DBG_CLI := $(TOOLS_DIR)/cilium-dbg
 HELM := helm --repository-cache $(CACHE_DIR)/helm/repository --repository-config $(CACHE_DIR)/helm/repositories.yaml
 

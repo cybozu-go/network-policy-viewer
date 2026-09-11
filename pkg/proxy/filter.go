@@ -31,9 +31,16 @@ func MakeBasicFilter(ingress, egress, allowed, denied, used, unused bool) Policy
 			ret = ret && denied
 		}
 		switch {
-		case p.Bytes > 0:
+		case p.IsStatsAvailable() && p.Bytes > 0:
 			ret = ret && used
-		case p.Bytes == 0:
+		default:
+			// Bytes == 0, or stats are unavailable (see
+			// PolicyEntry.IsStatsAvailable). On Cilium >= 1.18 a confirmed
+			// "0 bytes" essentially never happens outside of --debug, since
+			// the per-CPU LRU stats map only ever gains an entry once
+			// traffic is actually observed; "unavailable" is how "no
+			// traffic yet" is reported in practice, so treat it the same
+			// as a confirmed zero count for filtering.
 			ret = ret && unused
 		}
 		return ret, nil
