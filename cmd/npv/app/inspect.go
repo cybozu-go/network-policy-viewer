@@ -23,16 +23,16 @@ import (
 var inspectOptions struct {
 	allowed   bool
 	denied    bool
-	used      bool
-	unused    bool
+	active    bool
+	inactive  bool
 	maskCIDRs bool
 }
 
 func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.active, "active", false, "show rules with active traffic only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.inactive, "inactive", false, "show rules with inactive traffic only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
 	addPodSelectorOption(inspectCmd)
@@ -71,15 +71,12 @@ type inspectEntry struct {
 	WildcardPort     bool   `json:"wildcard_port"`
 	Protocol         uint8  `json:"protocol"`
 	Port             uint16 `json:"port"`
-	// StatsAvailable reports whether Bytes/Requests reflect real counters.
-	// Since Cilium 1.18, statistics may be unavailable for some entries (see
-	// proxy.PolicyEntry.IsStatsAvailable); Bytes/Requests are left at 0 in
-	// that case, which is not the same as a confirmed zero-byte count: in
-	// practice, stats are unavailable precisely when a rule hasn't carried
-	// traffic yet.
-	StatsAvailable bool   `json:"stats_available"`
-	Bytes          uint64 `json:"bytes"`
-	Requests       uint64 `json:"requests"`
+	// Bytes/Requests are left at 0 when the underlying policy map entry's
+	// statistics are unavailable (see proxy.PolicyEntry.IsStatsAvailable),
+	// which in practice means the rule hasn't carried traffic within the
+	// currently-retained statistics window. See --active/--inactive.
+	Bytes    uint64 `json:"bytes"`
+	Requests uint64 `json:"requests"`
 }
 
 func compareInspectEntry(x, y *inspectEntry) int {
@@ -118,7 +115,6 @@ func mergeInspectEntry(x, y *inspectEntry) *inspectEntry {
 		}
 	}
 
-	x.StatsAvailable = x.StatsAvailable && y.StatsAvailable
 	x.Bytes += y.Bytes
 	x.Requests += y.Requests
 	return x
@@ -129,9 +125,9 @@ func parseInspectOptions() {
 		inspectOptions.allowed = true
 		inspectOptions.denied = true
 	}
-	if !inspectOptions.used && !inspectOptions.unused {
-		inspectOptions.used = true
-		inspectOptions.unused = true
+	if !inspectOptions.active && !inspectOptions.inactive {
+		inspectOptions.active = true
+		inspectOptions.inactive = true
 	}
 }
 
@@ -218,8 +214,7 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, c client.Client, fil
 		entry.WildcardPort = p.IsWildcardPort()
 		entry.Protocol = p.GetProtocol()
 		entry.Port = p.Key.GetDestPort()
-		entry.StatsAvailable = p.IsStatsAvailable()
-		if entry.StatsAvailable {
+		if p.IsStatsAvailable() {
 			entry.Bytes = p.Bytes
 			entry.Requests = p.Packets
 		}
@@ -235,7 +230,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	basicFilter := proxy.MakeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
 		inspectOptions.allowed, inspectOptions.denied,
-		inspectOptions.used, inspectOptions.unused,
+		inspectOptions.active, inspectOptions.inactive,
 	)
 	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {

@@ -30,13 +30,8 @@ func computeAverage(bytes, count uint64) float64 {
 }
 
 // formatStatsColumns returns the BYTES/REQUESTS/AVERAGE column values for an
-// inspectEntry. It shows "-" for all three when the underlying policy map
-// entry's statistics were not available (see proxy.PolicyEntry.IsStatsAvailable),
-// rather than printing a computed value derived from a zeroed-out placeholder.
+// inspectEntry.
 func formatStatsColumns(p inspectEntry) (bytesStr, requestsStr, avgStr string) {
-	if !p.StatsAvailable {
-		return "-", "-", "-"
-	}
 	avgStr = fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
 	return formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avgStr
 }

@@ -290,29 +290,29 @@ Allow,Egress,cidr:public,false,false,132,53`,
 			ExtraArgs: []string{"--with-private-cidrs"},
 			Expected:  `Allow,Ingress,reserved:unknown,false,false,6,8000`,
 		},
-		// npv inspect should handle --used
+		// npv inspect should handle --active
 		{
 			Namespace: "test-l3",
 			Selector:  "test=l3-ingress-explicit-allow-all",
-			ExtraArgs: []string{"--used"},
+			ExtraArgs: []string{"--active"},
 			Expected:  `Allow,Ingress,self,true,true,0,0`,
 		},
 		{
 			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-explicit-allow-tcp",
-			ExtraArgs: []string{"--used"},
+			ExtraArgs: []string{"--active"},
 			Expected:  `Allow,Ingress,self,false,false,6,8000`,
 		},
-		// npv inspect should handle --unused
+		// npv inspect should handle --inactive
 		{
 			Namespace: "test-l4",
 			Selector:  "test=l4-ingress-explicit-deny-udp",
-			ExtraArgs: []string{"--denied", "--unused"},
+			ExtraArgs: []string{"--denied", "--inactive"},
 			Expected:  `Deny,Ingress,self,false,false,17,161`,
 		},
-		// npv inspect should handle --used without pod name
+		// npv inspect should handle --active without pod name
 		{
-			ExtraArgs: []string{"-N=group=test", "--used"},
+			ExtraArgs: []string{"-N=group=test", "--active"},
 			Expected: `Allow,Ingress,self,true,true,0,0
 Allow,Ingress,self,false,false,6,8000
 Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
@@ -350,21 +350,21 @@ Deny,Egress,l4-egress-explicit-deny-tcp,false,false,6,8000`,
 		// npv inspect should handle --group ns
 		{
 			Namespace: "test",
-			ExtraArgs: []string{selfNames[0], "--used"},
+			ExtraArgs: []string{selfNames[0], "--active"},
 			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		},
 		{
 			Namespace: "test",
-			ExtraArgs: []string{selfNames[1], "--used"},
+			ExtraArgs: []string{selfNames[1], "--active"},
 			Expected: `Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
 Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		},
 		{
 			Namespace: "test",
-			ExtraArgs: []string{"-l=test=self", "--used", "--group=ns"},
+			ExtraArgs: []string{"-l=test=self", "--active", "--group=ns"},
 			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
@@ -373,7 +373,7 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 		// npv inspect should handle --group all
 		{
 			Namespace: "test",
-			ExtraArgs: []string{"-l=test=self", "--used", "--group=all"},
+			ExtraArgs: []string{"-l=test=self", "--active", "--group=all"},
 			Expected: `Allow,Egress,cidr:1.1.1.1/32,false,false,17,53
 Allow,Egress,cidr:8.8.8.8/32,false,false,17,53
 Allow,Egress,l3-ingress-explicit-allow-all,true,true,0,0
@@ -402,16 +402,16 @@ Allow,Egress,l4-ingress-explicit-allow-tcp,false,false,6,8000`,
 	})
 
 	It("should show combined traffic amount", func() {
-		// Run npv inspect --used -ga for two self pods separately
-		result := runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", selfNames[0])
+		// Run npv inspect --active -ga for two self pods separately
+		result := runViewerSafe(Default, nil, "inspect", "--active", "-ga", "-o=json", "-n=test", selfNames[0])
 		result1 := formatTrafficResult(result, true)
 
-		result = runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", selfNames[1])
+		result = runViewerSafe(Default, nil, "inspect", "--active", "-ga", "-o=json", "-n=test", selfNames[1])
 		result2 := formatTrafficResult(result, true)
 		amount12 := readTraffic(result1 + "\n" + result2)
 
-		// Run npv inspect --used -ga for two self pods with a label selector
-		result = runViewerSafe(Default, nil, "inspect", "--used", "-ga", "-o=json", "-n=test", "-l=test=self")
+		// Run npv inspect --active -ga for two self pods with a label selector
+		result = runViewerSafe(Default, nil, "inspect", "--active", "-ga", "-o=json", "-n=test", "-l=test=self")
 		result3 := formatTrafficResult(result, true)
 		amount3 := readTraffic(result3)
 
