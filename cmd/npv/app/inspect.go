@@ -32,7 +32,7 @@ func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.active, "active", false, "show rules with active traffic only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.inactive, "inactive", false, "show rules with inactive traffic only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.inactive, "inactive", false, "show rules without active traffic only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
 	addPodSelectorOption(inspectCmd)
@@ -71,12 +71,8 @@ type inspectEntry struct {
 	WildcardPort     bool   `json:"wildcard_port"`
 	Protocol         uint8  `json:"protocol"`
 	Port             uint16 `json:"port"`
-	// Bytes/Requests are left at 0 when the underlying policy map entry's
-	// statistics are unavailable (see proxy.PolicyEntry.IsStatsAvailable),
-	// which in practice means the rule hasn't carried traffic within the
-	// currently-retained statistics window. See --active/--inactive.
-	Bytes    uint64 `json:"bytes"`
-	Requests uint64 `json:"requests"`
+	Bytes            uint64 `json:"bytes"`
+	Requests         uint64 `json:"requests"`
 }
 
 func compareInspectEntry(x, y *inspectEntry) int {

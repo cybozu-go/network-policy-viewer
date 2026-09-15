@@ -8,9 +8,9 @@ import (
 	"math"
 	"slices"
 	"strconv"
-	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -45,14 +45,8 @@ type idTreeEntry struct {
 // used to mirror them onto the CiliumIdentity's own metadata.labels: only
 // "k8s:"-sourced labels are considered, and the "k8s:" prefix is stripped.
 func k8sSecurityLabelSet(securityLabels map[string]string) k8slabels.Set {
-	const k8sPrefix = "k8s:"
-	set := make(k8slabels.Set, len(securityLabels))
-	for k, v := range securityLabels {
-		if key, ok := strings.CutPrefix(k, k8sPrefix); ok {
-			set[key] = v
-		}
-	}
-	return set
+	lbls := labels.Map2Labels(securityLabels, "")
+	return lbls.GetFromSource(labels.LabelSourceK8s).K8sStringMap()
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
@@ -81,11 +75,6 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
-	// CiliumIdentity's own metadata.labels no longer mirror arbitrary pod
-	// labels since Cilium 1.18 (only the namespace label is kept there), so
-	// podOptions.LabelSelector cannot be applied as a server-side List filter
-	// here. Instead, list every CiliumIdentity and match the selector against
-	// SecurityLabels (which still carries all of them) client-side.
 	var li ciliumv2.CiliumIdentityList
 	if err := c.List(ctx, &li); err != nil {
 		return err

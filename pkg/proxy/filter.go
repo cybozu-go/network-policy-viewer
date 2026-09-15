@@ -14,8 +14,7 @@ type PolicyFilter func(ctx context.Context, client *Client, p *PolicyEntry) (boo
 // MakeBasicFilter builds a filter for the basic ingress/egress,
 // allowed/denied, and active/inactive axes. "active" means the entry's
 // currently-retained statistics show traffic; "inactive" means they don't
-// (see PolicyEntry.IsStatsAvailable for why a missing entry is treated the
-// same as a confirmed zero count here).
+// (either zero bytes or stats unavailable).
 func MakeBasicFilter(ingress, egress, allowed, denied, active, inactive bool) PolicyFilter {
 	if ingress && egress && allowed && denied && active && inactive {
 		// no filter
@@ -39,13 +38,7 @@ func MakeBasicFilter(ingress, egress, allowed, denied, active, inactive bool) Po
 		case p.IsStatsAvailable() && p.Bytes > 0:
 			ret = ret && active
 		default:
-			// Bytes == 0, or stats are unavailable (see
-			// PolicyEntry.IsStatsAvailable). On Cilium >= 1.18 a confirmed
-			// "0 bytes" essentially never happens outside of --debug, since
-			// the per-CPU LRU stats map only ever gains an entry once
-			// traffic is actually observed; "unavailable" is how "no
-			// traffic yet" is reported in practice, so treat it the same
-			// as a confirmed zero count for filtering.
+			// Bytes == 0, or stats are unavailable; treat both as inactive
 			ret = ret && inactive
 		}
 		return ret, nil
