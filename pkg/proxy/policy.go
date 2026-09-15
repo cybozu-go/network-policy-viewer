@@ -6,13 +6,23 @@ import (
 )
 
 // For the meanings of the flags, see:
-// https://github.com/cilium/cilium/blob/v1.17.16/bpf/lib/common.h#L405
+// https://github.com/cilium/cilium/blob/v1.18.6/bpf/lib/common.h#L330
 type PolicyEntry struct {
 	policymap.PolicyEntryDump
 }
 
 func (p PolicyEntry) IsAllow() bool {
 	return !p.IsDeny()
+}
+
+// IsStatsAvailable reports whether Packets/Bytes reflect real counters.
+// Since Cilium 1.18 (see https://github.com/cilium/cilium/pull/37591),
+// policy statistics are tracked in a separate per-CPU LRU map, and an entry
+// is only created there once a packet actually matches it; until then (or
+// once evicted from the LRU under memory pressure), lookups report
+// policymap.StatNotAvailable rather than 0.
+func (p PolicyEntry) IsStatsAvailable() bool {
+	return p.Packets != policymap.StatNotAvailable && p.Bytes != policymap.StatNotAvailable
 }
 
 func (p PolicyEntry) IsIngress() bool {

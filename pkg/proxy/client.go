@@ -30,6 +30,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -164,25 +165,55 @@ func fetchCIDRGroupsLocked(ctx context.Context, c k8sclient.Client) error {
 		return nil
 	}
 
-	var resources ciliumv2alpha1.CiliumCIDRGroupList
-	if err := c.List(ctx, &resources); err != nil {
+	groups, err := listCIDRGroups(ctx, c)
+	if err != nil {
 		return err
 	}
 
 	tmp := make(map[string][]netip.Prefix)
-	for _, g := range resources.Items {
-		cidrs := make([]netip.Prefix, len(g.Spec.ExternalCIDRs))
-		for i, cs := range g.Spec.ExternalCIDRs {
-			c, err := netip.ParsePrefix(string(cs))
+	for name, externalCIDRs := range groups {
+		cidrs := make([]netip.Prefix, len(externalCIDRs))
+		for i, cs := range externalCIDRs {
+			p, err := netip.ParsePrefix(string(cs))
 			if err != nil {
 				return err
 			}
-			cidrs[i] = c
+			cidrs[i] = p
 		}
-		tmp[g.GetName()] = cidrs
+		tmp[name] = cidrs
 	}
 	cachedCIDRGroups = tmp
 	return nil
+}
+
+// listCIDRGroups lists CiliumCIDRGroup resources, preferring the cilium.io/v2
+// API that CiliumCIDRGroup was promoted to in Cilium 1.18. Clusters still
+// running Cilium 1.17 (or nodes not yet upgraded during a rolling upgrade)
+// only serve cilium.io/v2alpha1, so this falls back to it when the v2 kind
+// is not recognized by the API server.
+func listCIDRGroups(ctx context.Context, c k8sclient.Client) (map[string][]api.CIDR, error) {
+	var v2List ciliumv2.CiliumCIDRGroupList
+	err := c.List(ctx, &v2List)
+	switch {
+	case err == nil:
+		ret := make(map[string][]api.CIDR, len(v2List.Items))
+		for _, g := range v2List.Items {
+			ret[g.GetName()] = g.Spec.ExternalCIDRs
+		}
+		return ret, nil
+	case apimeta.IsNoMatchError(err):
+		var alphaList ciliumv2alpha1.CiliumCIDRGroupList
+		if err := c.List(ctx, &alphaList); err != nil {
+			return nil, err
+		}
+		ret := make(map[string][]api.CIDR, len(alphaList.Items))
+		for _, g := range alphaList.Items {
+			ret[g.GetName()] = g.Spec.ExternalCIDRs
+		}
+		return ret, nil
+	default:
+		return nil, err
+	}
 }
 
 func newHTTPClient() (*http.Client, error) {

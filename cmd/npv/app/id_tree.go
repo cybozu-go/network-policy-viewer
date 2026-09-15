@@ -10,8 +10,10 @@ import (
 	"strconv"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 
 	"github.com/cybozu-go/network-policy-viewer/pkg/k8s"
 	"github.com/cybozu-go/network-policy-viewer/pkg/subject"
@@ -36,6 +38,15 @@ var idTreeCmd = &cobra.Command{
 type idTreeEntry struct {
 	identity uint32
 	labels   map[string]string
+}
+
+// k8sSecurityLabelSet converts a CiliumIdentity's SecurityLabels into the
+// plain key=value form used by --pod-selector, mirroring how Cilium <1.18
+// used to mirror them onto the CiliumIdentity's own metadata.labels: only
+// "k8s:"-sourced labels are considered, and the "k8s:" prefix is stripped.
+func k8sSecurityLabelSet(securityLabels map[string]string) k8slabels.Set {
+	lbls := labels.Map2Labels(securityLabels, "")
+	return lbls.GetFromSource(labels.LabelSourceK8s).K8sStringMap()
 }
 
 func runIdTree(ctx context.Context, w io.Writer) error {
@@ -65,7 +76,7 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 	}
 
 	var li ciliumv2.CiliumIdentityList
-	if err := c.List(ctx, &li, podOptions); err != nil {
+	if err := c.List(ctx, &li); err != nil {
 		return err
 	}
 
@@ -82,6 +93,9 @@ func runIdTree(ctx context.Context, w io.Writer) error {
 			if _, ok := nsSet[ns]; !ok {
 				continue
 			}
+		}
+		if !podOptions.LabelSelector.Matches(k8sSecurityLabelSet(item.SecurityLabels)) {
+			continue
 		}
 		e.labels = item.SecurityLabels
 		items = append(items, e)

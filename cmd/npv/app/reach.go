@@ -185,7 +185,7 @@ func runReach(ctx context.Context, stdout, stderr io.Writer) error {
 				example = strings.Split(p.Example, ",")
 			}
 		}
-		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		bytesStr, requestsStr, avg := formatStatsColumns(p.inspectEntry)
+		return []any{p.Role, p.Direction, p.Policy, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", bytesStr, requestsStr, avg}
 	})
 }

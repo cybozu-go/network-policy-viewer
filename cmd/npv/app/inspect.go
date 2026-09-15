@@ -23,16 +23,16 @@ import (
 var inspectOptions struct {
 	allowed   bool
 	denied    bool
-	used      bool
-	unused    bool
+	active    bool
+	inactive  bool
 	maskCIDRs bool
 }
 
 func init() {
 	inspectCmd.Flags().BoolVar(&inspectOptions.allowed, "allowed", false, "show allowed-rules only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.denied, "denied", false, "show denied-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.used, "used", false, "show used-rules only")
-	inspectCmd.Flags().BoolVar(&inspectOptions.unused, "unused", false, "show unused-rules only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.active, "active", false, "show rules with active traffic only")
+	inspectCmd.Flags().BoolVar(&inspectOptions.inactive, "inactive", false, "show rules without active traffic only")
 	inspectCmd.Flags().BoolVar(&inspectOptions.maskCIDRs, "mask-cidrs", false, "mask cluster-external CIDRs and unify them into public, private, and unknown")
 	addGroupOption(inspectCmd)
 	addPodSelectorOption(inspectCmd)
@@ -58,7 +58,7 @@ var inspectCmd = &cobra.Command{
 }
 
 // This command aims to show the result of "cilium bpf policy get" from a remote pod.
-// https://github.com/cilium/cilium/blob/v1.17.16/cilium-dbg/cmd/bpf_policy_get.go
+// https://github.com/cilium/cilium/blob/v1.18.6/cilium-dbg/cmd/bpf_policy_get.go
 type inspectEntry struct {
 	Subject          string `json:"subject"`
 	Node             string `json:"node"`
@@ -121,9 +121,9 @@ func parseInspectOptions() {
 		inspectOptions.allowed = true
 		inspectOptions.denied = true
 	}
-	if !inspectOptions.used && !inspectOptions.unused {
-		inspectOptions.used = true
-		inspectOptions.unused = true
+	if !inspectOptions.active && !inspectOptions.inactive {
+		inspectOptions.active = true
+		inspectOptions.inactive = true
 	}
 }
 
@@ -210,8 +210,10 @@ func runInspectOnPod(ctx context.Context, stderr io.Writer, c client.Client, fil
 		entry.WildcardPort = p.IsWildcardPort()
 		entry.Protocol = p.GetProtocol()
 		entry.Port = p.Key.GetDestPort()
-		entry.Bytes = p.Bytes
-		entry.Requests = p.Packets
+		if p.IsStatsAvailable() {
+			entry.Bytes = p.Bytes
+			entry.Requests = p.Packets
+		}
 		arr[i] = entry
 	}
 
@@ -224,7 +226,7 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 	basicFilter := proxy.MakeBasicFilter(
 		policyOptions.ingress, policyOptions.egress,
 		inspectOptions.allowed, inspectOptions.denied,
-		inspectOptions.used, inspectOptions.unused,
+		inspectOptions.active, inspectOptions.inactive,
 	)
 	withFilter, err := parseCIDROptions(true, true, "with", &commonOptions.with)
 	if err != nil {
@@ -283,8 +285,8 @@ func runInspect(ctx context.Context, stdout, stderr io.Writer, name string) erro
 				example = strings.Split(p.Example, ",")
 			}
 		}
-		avg := fmt.Sprintf("%.1f", computeAverage(p.Bytes, p.Requests))
-		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", formatWithUnits(p.Bytes), formatWithUnits(p.Requests), avg}
+		bytesStr, requestsStr, avg := formatStatsColumns(p)
+		values := []any{p.Policy, p.Direction, "|", p.Identity, p.Namespace, example, "|", protocol, port, "|", bytesStr, requestsStr, avg}
 		if subject.ShouldPrintSubject(name) {
 			subValues := []any{p.Subject, "|"}
 			values = append(subValues, values...)

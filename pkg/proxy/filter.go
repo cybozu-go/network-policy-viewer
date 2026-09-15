@@ -11,8 +11,12 @@ import (
 
 type PolicyFilter func(ctx context.Context, client *Client, p *PolicyEntry) (bool, error)
 
-func MakeBasicFilter(ingress, egress, allowed, denied, used, unused bool) PolicyFilter {
-	if ingress && egress && allowed && denied && used && unused {
+// MakeBasicFilter builds a filter for the basic ingress/egress,
+// allowed/denied, and active/inactive axes. "active" means the entry's
+// currently-retained statistics show traffic; "inactive" means they don't
+// (either zero bytes or stats unavailable).
+func MakeBasicFilter(ingress, egress, allowed, denied, active, inactive bool) PolicyFilter {
+	if ingress && egress && allowed && denied && active && inactive {
 		// no filter
 		return nil
 	}
@@ -31,10 +35,11 @@ func MakeBasicFilter(ingress, egress, allowed, denied, used, unused bool) Policy
 			ret = ret && denied
 		}
 		switch {
-		case p.Bytes > 0:
-			ret = ret && used
-		case p.Bytes == 0:
-			ret = ret && unused
+		case p.IsStatsAvailable() && p.Bytes > 0:
+			ret = ret && active
+		default:
+			// Bytes == 0, or stats are unavailable; treat both as inactive
+			ret = ret && inactive
 		}
 		return ret, nil
 	}
