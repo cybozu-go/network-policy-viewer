@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 jobs:
   release:
     name: Release network-policy-viewer
@@ -31,6 +32,17 @@ jobs:
               echo "Tag ${VTAG} already exists"
               exit 1
           fi
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          # Disable caching to prevent cache poisoning in the release workflow.
+          cache: false
+      - uses: flatt-security/setup-takumi-guard-golang@1c8aa7498f7f635fbd6ad6a0f436d03092b3502d # v1.1.0
+        with:
+          bot-id: ${{ vars.TAKUMI_GUARD_BOT_ID }}
+      - name: Export .netrc path for docker build
+        # $HOME is not available in the env context, so expose it explicitly.
+        run: echo "NETRC_PATH=$HOME/.netrc" >> "$GITHUB_ENV"
       - name: Download Cilium CLI
         run: make download-cilium-cli
       - name: Set up Docker Buildx
@@ -48,11 +60,10 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ghcr.io/cybozu-go/cilium-agent-proxy:${{ inputs.tag }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-          # Disable caching to prevent cache poisoning in the release workflow.
-          cache: false
+          build-args: |
+            GOPROXY=${{ env.GOPROXY }}
+          secret-files: |
+            netrc=${{ env.NETRC_PATH }}
       - name: Build
         env:
           VTAG: v${{ inputs.tag }}

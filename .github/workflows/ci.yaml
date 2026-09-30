@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   packages: read
+  id-token: write
 jobs:
   test:
     name: e2e
@@ -19,6 +20,15 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
+      - uses: ./.github/actions/setup-takumi-guard
+        with:
+          bot-id: ${{ vars.TAKUMI_GUARD_BOT_ID }}
+      - name: Export .netrc path for docker build
+        # $HOME is not available in the env context. Pull requests from forks have no .netrc.
+        run: |
+          if [ -f "$HOME/.netrc" ]; then
+            echo "NETRC_SECRET=netrc=$HOME/.netrc" >> "$GITHUB_ENV"
+          fi
       - name: Cache tools
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -58,6 +68,9 @@ jobs:
           load: true
           push: false
           tags: cilium-agent-proxy:dev
+          build-args: |
+            GOPROXY=${{ env.GOPROXY }}
+          secret-files: ${{ env.NETRC_SECRET }}
       - name: Run environment
         working-directory: e2e
         run: |
