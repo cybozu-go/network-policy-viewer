@@ -133,7 +133,7 @@ Egress,CiliumNetworkPolicy,test,l4-self`,
 			result := runViewerSafe(Default, nil, args...)
 			result = jqSafe(Default, result, "-r", ".[] | [.direction, .kind, .namespace, .name] | @csv")
 			resultString := strings.ReplaceAll(string(result), `"`, "")
-			Expect(resultString).To(Equal(c.Expected), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
+			Expect(resultString).To(Equal(expectSpecs(c.Expected)), "compare failed. selector: %s\nactual: %s\nexpected: %s", c.Selector, resultString, c.Expected)
 		}
 	})
 }
@@ -154,7 +154,7 @@ l3-ingress-explicit-deny-all,Ingress,CiliumNetworkPolicy,test-l3,l3-ingress-expl
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.ReplaceAll(string(result), `"`, "")
-		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+		Expect(resultString).To(Equal(expectSpecs(expected)), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 
 	It("should group result per namespace", func() {
@@ -166,7 +166,7 @@ test,Egress,CiliumNetworkPolicy,test,l4-self`
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.ReplaceAll(string(result), `"`, "")
-		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+		Expect(resultString).To(Equal(expectSpecs(expected)), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 
 	It("should merge all result", func() {
@@ -178,7 +178,7 @@ test,Egress,CiliumNetworkPolicy,test,l4-self`
 		result = fixJsonPodField(Default, result, "subject")
 		result = jqSafe(Default, result, "-r", ".[] | [.subject, .direction, .kind, .namespace, .name] | @csv")
 		resultString := strings.ReplaceAll(string(result), `"`, "")
-		Expect(resultString).To(Equal(expected), "compare failed. actual: %s\nexpected: %s", resultString, expected)
+		Expect(resultString).To(Equal(expectSpecs(expected)), "compare failed. actual: %s\nexpected: %s", resultString, expected)
 	})
 }
 
@@ -190,6 +190,24 @@ metadata:
   name: l3-baseline
 spec:
   egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:test: scapegoat
+  endpointSelector:
+    matchLabels:
+      k8s:group: test
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:test: scapegoat
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  annotations: {}
+  name: l3-baseline-specs
+specs:
+- egressDeny:
   - toEndpoints:
     - matchLabels:
         k8s:test: scapegoat
@@ -251,10 +269,132 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   annotations: {}
+  name: l3-self-specs
+  namespace: test
+specs:
+- egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
+        k8s:test: l3-ingress-explicit-allow-all
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
+        k8s:test: l3-ingress-no-rule
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
+        k8s:test: l3-ingress-implicit-deny-all
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
+        k8s:test: l3-ingress-explicit-deny-all
+  - toCIDRSet:
+    - cidrGroupSelector:
+        matchLabels:
+          group: test-group
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l3
+        k8s:test: l3-egress-explicit-deny-all
+  endpointSelector:
+    matchLabels:
+      k8s:test: self
+  ingress:
+  - fromCIDR:
+    - 10.100.0.0/16
+    - 172.0.0.0/8
+  - fromCIDRSet:
+    - cidr: 10.120.0.0/16
+      except:
+      - 10.120.0.0/24
+    - cidrGroupRef: cidr-group-1
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations: {}
   name: l4-self
   namespace: test
 spec:
   egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-ingress-explicit-allow-any
+    toPorts:
+    - ports:
+      - port: "53"
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-ingress-explicit-allow-tcp
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-ingress-explicit-deny-any
+    toPorts:
+    - ports:
+      - port: "53"
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-ingress-explicit-deny-udp
+    toPorts:
+    - ports:
+      - port: "161"
+        protocol: UDP
+  - toCIDR:
+    - 1.1.1.1/32
+    - 8.8.8.8/32
+    toPorts:
+    - ports:
+      - port: "53"
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-egress-explicit-deny-any
+    toPorts:
+    - ports:
+      - port: "53"
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
+        k8s:test: l4-egress-explicit-deny-tcp
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+  - toCIDR:
+    - 8.8.4.4/32
+    toPorts:
+    - ports:
+      - port: "53"
+  endpointSelector:
+    matchLabels:
+      k8s:test: self
+  ingressDeny:
+  - fromCIDR:
+    - 192.168.100.0/24
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations: {}
+  name: l4-self-specs
+  namespace: test
+specs:
+- egress:
   - toEndpoints:
     - matchLabels:
         k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: test-l4
