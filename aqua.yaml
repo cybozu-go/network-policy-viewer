@@ -11,7 +11,11 @@ packages:
 - name: golangci/golangci-lint@v2.12.2
 - name: helm/helm@v4.2.3
 - name: jqlang/jq@jq-1.8.2
+- name: koalaman/shellcheck@v0.11.0
 - name: kubernetes/kubectl@v1.36.2
 - name: kubernetes-sigs/kind@v0.32.0
 - name: kubernetes-sigs/kustomize@kustomize/v5.8.1
 - name: mikefarah/yq@v4.53.3
+- name: rhysd/actionlint@v1.7.12
+- name: suzuki-shunsuke/pinact@v4.1.1
+- name: zizmorcore/zizmor@v1.29.0
