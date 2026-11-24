@@ -31,9 +31,13 @@ wait-for-workloads:
 
 .PHONY: start
 start:
-	docker pull $(CILIUM_IMAGE)
+	@# https://kind.sigs.k8s.io/docs/user/known-issues/#unable-to-kind-load-docker-images
+	docker pull --platform linux/amd64 $(CILIUM_IMAGE)
 	kind create cluster --config testdata/cluster.yaml
-	kind load docker-image $(CILIUM_IMAGE)
+	mkdir -p $(CACHE_DIR)
+	docker save --platform linux/amd64 $(CILIUM_IMAGE) -o $(CACHE_DIR)/cilium-image.tar
+	kind load image-archive $(CACHE_DIR)/cilium-image.tar
+	rm -f $(CACHE_DIR)/cilium-image.tar
 	$(HELM) install cilium $(CILIUM_CHART) \
 		--version $$(echo $(CILIUM_IMAGE) | cut -d: -f2 | cut -c2-) \
 		--namespace kube-system \
